@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Imágenes y Texto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            overflow: hidden; /* Prevent body scroll */
+            background-color: #1a202c; /* Dark bluish gray for body */
+        }
+        /* Custom styles for draggable/resizable elements */
+        .element-wrapper { /* This is the new wrapper for draggable elements */
+            position: absolute;
+            cursor: grab;
+            user-select: none;
+            box-sizing: border-box;
+            transition: box-shadow 0.1s ease-in-out; /* Smooth transition for shadow */
+        }
+        .element-wrapper.selected {
+            box-shadow: 0 0 0 2px #8B5CF6; /* Purple shadow when selected, always opaque */
+            cursor: grabbing;
+        }
+
+        /* Content inside the wrapper - where opacity is applied */
+        .element-content {
+            display: block; /* Ensures proper sizing for images and text divs */
+            object-fit: contain; /* For images, maintains aspect ratio within bounds */
+            width: 100%; /* Make content take full width of wrapper for images/videos */
+            height: 100%; /* Make content take full height of wrapper for images/videos */
+        }
+        .text-content {
+            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
+            word-break: break-word; /* Break long words */
+            display: block; /* Allows natural content sizing */
+            width: auto; /* Let content determine width */
+            height: auto; /* Let content determine height */
+            padding: 0.5rem; /* Match p-2 from original text-element */
+            box-sizing: border-box; /* Ensures padding is included in the element's total size */
+            text-align: center; /* Center text horizontally within the block */
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 10px; /* Smaller squares */
+            height: 10px;
+            background-color: #8B5CF6; /* Purple color */
+            border: 1px solid #ffffff;
+            cursor: grab; /* General grab cursor for handles initially */
+            z-index: 1000; /* Ensure handles are on top */
+        }
+        /* Cursors for specific resize handles */
+        .resize-handle.top-left { top: -5px; left: -5px; cursor: nwse-resize; }
+        .resize-handle.top-right { top: -5px; right: -5px; cursor: nesw-resize; }
+        .resize-handle.bottom-left { bottom: -5px; left: -5px; cursor: nesw-resize; }
+        .resize-handle.bottom-right { bottom: -5px; right: -5px; cursor: nwse-resize; }
+
+        .rotation-handle {
+            position: absolute;
+            top: -25px; /* Position above the element */
+            left: 50%;
+            transform: translateX(-50%); /* Center horizontally */
+            width: 20px;
+            height: 20px;
+            background-color: #8B5CF6; /* Purple color */
+            border-radius: 50%; /* Circular shape */
+            border: 1px solid #ffffff;
+            cursor: grab;
+            z-index: 1000;
+            display: none; /* Hidden by default */
+        }
+
+        /* Custom scrollbar for sidebar */
+        .sidebar-scroll {
+            overflow-y: auto;
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        .sidebar-scroll::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+
+        /* Tab styling */
+        .tab-button {
+            padding: 0.35rem 1rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-weight: 600;
+            color: #A0AEC0; /* gray-400 */
+            transition: all 0.2s ease-in-out;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .tab-button.active {
+            border-bottom-color: transparent;
+            background-color: #4A5568; /* gray-700 background */
+            color: #FFFFFF;
+        }
+        .tab-content {
+            display: none;
+            padding-top: 0.5rem;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background-color: #2D3748; /* gray-800 */
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            color: #E2E8F0; /* gray-200 */
+        }
+        .layer-item:hover {
+            background-color: #4A5568; /* gray-700 */
+        }
+        .layer-item.selected {
+            background-color: #8B5CF6; /* purple-500 */
+            color: #FFFFFF;
+        }
+        /* Style for active bold/italic buttons */
+        button.active-style {
+            background-color: #8B5CF6; /* purple-500 */
+            border: 1px solid #7C3AED; /* purple-600 */
+        }
+
+        .reset-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #A0AEC0; /* gray-400 */
+            padding: 0.25rem;
+            line-height: 1; /* Adjust to better align icon */
+        }
+        .reset-button:hover {
+            color: #E2E8F0; /* gray-200 */
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            height: 2.5rem;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+        }
+        input[type="color"]::-moz-color-remap-panel {
+            border: none;
+        }
+        input[type="color"]::-moz-color-swatch {
+        }
+
+        /* Custom styles for file input to hide default text */
+        .custom-file-input {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .custom-file-input input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Responsive layout for mobile */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            aside {
+                width: 100%;
+                height: auto;
+                max-height: 50vh;
+            }
+            main {
+                flex-grow: 1;
+                width: 100%;
+                margin: 0.5rem;
+            }
+        }
+
+        /* Styles for range input (sliders) */
+        input[type="range"].w-full {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+            width: 100%;
+            height: 8px;
+        }
+
+        /* Track styles for Webkit (Chrome, Safari, Edge) */
+        input[type="range"].w-full::-webkit-slider-runnable-track {
+            background: #4A5568; /* gray-700 for the track */
+            border-radius: 4px;
+            height: 4px;
+        }
+
+        /* Thumb styles for Webkit - General, will be overridden by #zoomRange if more specific */
+        input[type="range"].w-full::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: #8B5CF6; /* Beautiful purple */
+            border: 1px solid #FFFFFF;
+            border-radius: 50%;
+            height: 16px;
+            width: 16px;
+            margin-top: -6px;
+        }
+
+        /* Track styles for Firefox */
+        input[type="range"].w-full::-moz-range-track {
+            background: #4A5568; /* gray-700 for the track */
+            border-radius: 4px;
+            height: 4px;
+        }
+
+        /* Thumb styles for Firefox - General, will be overridden by #zoomRange if more specific */
+        input[type="range"].w-full::-moz-range-thumb {
+            background-color: #8B5CF6; /* Beautiful purple */
+            border: 1px solid #FFFFFF;
+            border-radius: 50%;
+            height: 16px;
+            width: 16px;
+        }
+
+        /* Main canvas container (now the canvas itself) */
+        main#editorCanvas {
+            position: relative; /* Keep relative for absolute children positioning */
+            flex: 1; /* Allow it to take available space */
+            margin: 1rem; /* Adjust margin as needed */
+            background-color: #166534; /* Darker green background */
+            border: 2px dashed white; /* Border directly on the canvas */
+            display: flex; /* Use flexbox to center content */
+            align-items: center;
+            justify-content: center;
+            transform-origin: center center; /* This will be set by JS */
+            z-index: 10; /* Ensure canvas is below sidebar */
+        }
+
+        /* Style for the drag and drop area */
+        #dropArea {
+            border: 2px dashed #4A5568; /* Dark gray dashed border */
+            background-color: #2D3748; /* Darker gray background */
+            text-align: center;
+            padding: 1rem;
+            margin-top: 1rem;
+            color: #A0AEC0; /* Light gray text */
+            font-size: 0.875rem; /* text-sm */
+            border-radius: 0.5rem; /* rounded-lg */
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+
+        #dropArea.highlight {
+            background-color: #4A5568; /* Highlight background on dragover */
+            border-color: #8B5CF6; /* Purple border on highlight */
+        }
+
+        /* Specific styles for the new zoom slider thumb */
+        #newZoomRange::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: #8B5CF6; /* Purple for zoom thumb */
+            border: 1px solid #FFFFFF;
+            border-radius: 50%;
+            height: 16px;
+            width: 16px;
+            margin-top: -5px; /* Adjusted to -5px */
+        }
+
+        #newZoomRange::-moz-range-thumb {
+            background-color: #8B5CF6; /* Purple for zoom thumb */
+            border: 1px solid #FFFFFF;
+            border-radius: 50%;
+            height: 16px;
+            width: 16px;
+            margin-top: -5px; /* Adjusted to -5px */
+        }
+
+    </style>
+</head>
+<body class="h-screen flex text-gray-800">
+
+    <aside class="w-80 bg-gray-900 shadow-lg flex flex-col sidebar-scroll text-gray-200 md:w-80 pt-4 z-20"> <!-- Added z-20 to ensure sidebar is on top -->
+        <div class="border-b pb-2 border-gray-700 px-4">
+            <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/Video</label>
+            <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center">
+                <span id="selectFileButtonText">Seleccionar archivo</span>
+                <input type="file" id="imageUpload" accept="image/*, .gif, video/mp4" class="block w-full text-sm text-gray-400">
+            </div>
+            <span id="fileCountDisplay" class="block text-xs text-gray-400 mt-2 text-center">0/50</span>
+
+            <!-- New Drag and Drop Area -->
+            <div id="dropArea">Arrastra y suelta archivos aquí</div>
+        </div>
+
+        <div class="flex border-b border-gray-700">
+            <button class="tab-button active flex-1 text-center" data-tab="properties">Propiedades</button>
+            <button class="tab-button flex-1 text-center" data-tab="text">Texto</button>
+            <button class="tab-button flex-1 text-center" data-tab="layers">Capas</button>
+        </div>
+
+        <div id="tab-content-properties" class="tab-content active flex-grow px-4">
+            <h2 class="text-lg font-semibold mb-4 text-purple-400">Controles de Elemento</h2>
+
+            <div class="mb-4">
+                <label for="opacityRange" class="block text-sm font-medium text-gray-300 mb-2">Opacidad</label>
+                <div class="flex items-center space-x-2">
+                    <input type="range" id="opacityRange" min="0" max="1" step="0.01" value="1" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                    <span id="opacityValue" class="text-xs text-gray-400 w-10 text-right">100%</span>
+                    <button id="resetOpacityBtn" class="reset-button" title="Reiniciar Opacidad" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                            <path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903-1.903h-.38a.75.75 0 0 0-.75.75V4.5c0-.414.336-.75.75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V6.707l-1.596 1.596a9 9 0 1 0-.215 11.834.75.75 0 1 0 1.06-.858 7.5 7.5 0 1 1-10.372-9.07Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label for="rotationRange" class="block text-sm font-medium text-gray-300 mb-2">Rotación</label>
+                <div class="flex items-center space-x-2">
+                    <input type="range" id="rotationRange" min="0" max="360" step="1" value="0" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                    <span id="rotationValue" class="text-xs text-gray-400 w-10 text-right">0°</span>
+                    <button id="resetRotationBtn" class="reset-button" title="Reiniciar Rotación" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                            <path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903-1.903h-.38a.75.75 0 0 0-.75.75V4.5c0-.414.336-.75.75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V6.707l-1.596 1.596a9 9 0 1 0-.215 11.834.75.75 0 1 0 1.06-.858 7.5 7.5 0 1 1-10.372-9.07Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <button id="duplicateElementBtn" disabled class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                Duplicar elemento
+            </button>
+            <button id="bringToFrontBtn" disabled class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                Traer al frente
+            </button>
+            <button id="deleteElementBtn" disabled class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mb-4">
+                Eliminar elemento
+            </button>
+
+            <!-- Video Controls Section -->
+            <div id="videoControlsSection" class="hidden">
+                <h3 class="text-md font-semibold mb-2 text-purple-400">Controles de Video</h3>
+                <div class="flex items-center space-x-2 mb-3">
+                    <button id="playPauseBtn" class="bg-purple-600 hover:bg-purple-700 text-white p-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <!-- Play Icon -->
+                        <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.38 2.872-1.63l11.358 6.368c1.148.647 1.148 2.314 0 2.96l-11.358 6.368c-1.343.75-2.872-.203-2.872-1.63V5.653Z" clip-rule="evenodd" />
+                        </svg>
+                        <!-- Pause Icon -->
+                        <svg id="pauseIcon" class="hidden w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25ZM14.25 5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <input type="range" id="volumeRange" min="0" max="1" step="0.01" value="0.5" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-content-text" class="tab-content flex-grow px-4">
+            <label for="textInput" class="block text-sm font-medium text-gray-300 mb-2">Contenido del Texto</label>
+            <textarea id="textInput" class="w-full p-2 border border-gray-600 bg-gray-700 text-gray-100 focus:outline-none focus:ring-purple-400" rows="3" placeholder="Escribe aquí el texto"></textarea>
+            <button id="addTextBtn" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-4">
+                Añadir Texto al Lienzo
+            </button>
+
+            <h3 class="text-md font-semibold mb-2 text-purple-400 mt-6">Ajustes de Estilo de Texto</h3>
+
+            <div class="flex space-x-2 mb-4">
+                <button id="boldTextBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 shadow-md transition-all duration-200">
+                    Negrita
+                </button>
+                <button id="italicTextBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white italic py-2 px-4 shadow-md transition-all duration-200">
+                    Cursiva
+                </button>
+            </div>
+
+            <div class="mb-4">
+                <label for="fontSizeRange" class="block text-sm font-medium text-gray-300 mb-2">Tamaño del Texto</label>
+                <div class="flex items-center space-x-2">
+                    <input type="range" id="fontSizeRange" min="10" max="100" step="1" value="24" class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                    <span id="fontSizeValue" class="text-xs text-gray-400 w-10 text-right">24px</span>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="textColor" class="block text-sm font-medium text-gray-300 mb-2">Color del Texto</label>
+                <input type="color" id="textColor" value="#FFFFFF" class="w-full h-8 border border-gray-600 bg-gray-700 p-1 cursor-pointer">
+            </div>
+
+            <div class="mb-4">
+                <div class="flex items-center justify-between space-x-2">
+                    <label for="toggleTextBg" class="text-sm font-medium text-gray-300 cursor-pointer">Fondo del Texto</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="toggleTextBg" class="h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 focus:ring-purple-500">
+                        <label for="toggleTextBg" class="text-sm font-medium text-gray-300 cursor-pointer">Activar</label>
+                    </div>
+                </div>
+                <!-- Nested div for indentation -->
+                <div class="pl-4 border-l border-gray-700 mt-2">
+                    <label id="textBgColorLabel" for="textBgColor" class="block text-sm font-medium text-gray-400 mb-2 mt-2 disabled:text-gray-600">Color de Fondo del Texto</label>
+                    <input type="color" id="textBgColor" value="#000000" class="w-full h-8 border border-gray-600 bg-gray-700 p-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-800">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <div class="flex items-center justify-between space-x-2">
+                    <label for="toggleTextOutline" class="text-sm font-medium text-gray-300 cursor-pointer">Contorno del Texto</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="toggleTextOutline" class="h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 focus:ring-purple-500">
+                        <label for="toggleTextOutline" class="text-sm font-medium text-gray-300 cursor-pointer">Activar</label>
+                    </div>
+                </div>
+                <!-- Nested div for indentation -->
+                <div class="pl-4 border-l border-gray-700 mt-2">
+                    <label id="textOutlineColorLabel" for="textOutlineColor" class="block text-sm font-medium text-gray-400 mb-2 mt-2 disabled:text-gray-600">Color del Contorno</label>
+                    <input type="color" id="textOutlineColor" value="#000000" class="w-full h-8 border border-gray-600 bg-gray-700 p-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-800">
+
+                    <label id="outlineThicknessLabel" for="outlineThicknessRange" class="block text-sm font-medium text-gray-400 mb-2 mt-4 disabled:text-gray-600">Grosor del Contorno</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="range" id="outlineThicknessRange" min="0" max="5" step="0.1" value="0" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                        <span id="outlineThicknessValue" class="text-xs text-gray-400 w-10 text-right">0px</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="tab-content-layers" class="tab-content flex-grow px-4">
+            <h2 class="text-lg font-semibold mb-4 text-purple-400">Capas de Elementos</h2>
+            
+            <div id="layersList" class="space-y-2">
+                <p class="text-gray-400 text-sm">No hay elementos en la página.</p>
+            </div>
+        </div>
+
+    </aside>
+
+    <main id="editorCanvas" class="relative flex-1 m-4 shadow-inner border-2 border-white border-dashed bg-green-800 flex items-center justify-center">
+        <!-- Elements will be appended directly to main, which is now the canvas -->
+    </main>
+
+    <!-- Re-created Zoom Controls -->
+    <div class="absolute bottom-4 right-4 bg-gray-800 p-2 rounded-lg shadow-xl z-50 flex items-center space-x-2 zoom-controls">
+        <label for="newZoomRange" class="text-sm font-medium text-gray-300">Zoom</label>
+        <input type="range" id="newZoomRange" min="0.25" max="2.0" step="0.05" value="1.0" class="w-24 h-2 bg-gray-700 appearance-none cursor-pointer">
+        <span id="zoomValue" class="text-xs text-gray-400">100%</span>
+    </div>
+
+    <script>
+        // editorCanvas now refers to the main element itself
+        const editorCanvas = document.getElementById('editorCanvas'); 
+        const sidebar = document.querySelector('aside');
+        const imageUpload = document.getElementById('imageUpload');
+        const addTextBtn = document.getElementById('addTextBtn');
+        const textInput = document.getElementById('textInput');
+        const opacityRange = document.getElementById('opacityRange');
+        const opacityValue = document.getElementById('opacityValue');
+        const rotationRange = document.getElementById('rotationRange');
+        const rotationValue = document.getElementById('rotationValue');
+        const duplicateElementBtn = document.getElementById('duplicateElementBtn');
+        const deleteElementBtn = document.getElementById('deleteElementBtn');
+        const layersList = document.getElementById('layersList');
+        const bringToFrontBtn = document.getElementById('bringToFrontBtn');
+
+        // Text styling controls
+        const textColorInput = document.getElementById('textColor');
+        const textBgColorInput = document.getElementById('textBgColor');
+        const boldTextBtn = document.getElementById('boldTextBtn');
+        const italicTextBtn = document.getElementById('italicTextBtn');
+        const toggleTextBg = document.getElementById('toggleTextBg');
+
+        // New Outline controls
+        const toggleTextOutline = document.getElementById('toggleTextOutline');
+        const textOutlineColorInput = document.getElementById('textOutlineColor');
+        const outlineThicknessRange = document.getElementById('outlineThicknessRange');
+        const outlineThicknessValue = document.getElementById('outlineThicknessValue');
+
+        // New Font Size controls
+        const fontSizeRange = document.getElementById('fontSizeRange');
+        const fontSizeValue = document.getElementById('fontSizeValue');
+
+        // Reset buttons
+        const resetOpacityBtn = document.getElementById('resetOpacityBtn');
+        const resetRotationBtn = document.getElementById('resetRotationBtn');
+
+        // Video controls
+        const videoControlsSection = document.getElementById('videoControlsSection');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const volumeRange = document.getElementById('volumeRange');
+
+        // File upload limit
+        const fileLimit = 50;
+        const fileCountDisplay = document.getElementById('fileCountDisplay');
+        const selectFileButtonText = document.getElementById('selectFileButtonText');
+
+        // New references for labels to change their color
+        const textBgColorLabel = document.getElementById('textBgColorLabel');
+        const textOutlineColorLabel = document.getElementById('textOutlineColorLabel');
+        const outlineThicknessLabel = document.getElementById('outlineThicknessLabel');
+
+        // Zoom controls (Updated ID)
+        const zoomRange = document.getElementById('newZoomRange'); // Changed ID to newZoomRange
+        const zoomValue = document.getElementById('zoomValue');
+
+        // Drag and drop area
+        const dropArea = document.getElementById('dropArea');
+
+
+        let selectedElementWrapper = null;
+        let isDragging = false;
+        let isResizing = false;
+        let isRotating = false;
+        let activeHandle = '';
+        let initialMouseX, initialMouseY; // Mouse/touch position in unscaled canvas coordinates
+        let initialLeft, initialTop, initialWidth, initialHeight; // Element properties in unscaled canvas coordinates
+        let initialRotationAngle = 0; // Viewport angle for rotation
+        let initialElementRotation = 0; // Element's current rotation angle
+
+        let currentZoom = 1.0; // Initial zoom level
+
+        const allElements = new Map();
+
+        // --- Utility Functions ---
+        function generateUniqueId() {
+            return 'element-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Function to get the next highest z-index across ALL elements on canvas
+        function getNextHighestZIndex() {
+            let maxZ = 0;
+            // Iterate over all actual element wrappers on the canvas
+            document.querySelectorAll('.element-wrapper').forEach(elementWrapper => {
+                const currentZ = parseInt(elementWrapper.style.zIndex || 0);
+                if (currentZ > maxZ) {
+                    maxZ = currentZ;
+                }
+            });
+            return maxZ + 1;
+        }
+
+        // Function to apply zoom to the canvas
+        function applyZoom() {
+            editorCanvas.style.transform = `scale(${currentZoom})`;
+            editorCanvas.style.transformOrigin = 'center center'; // Scale from the center of the canvas
+            zoomValue.textContent = `${Math.round(currentZoom * 100)}%`;
+        }
+
+        function generateTextShadowForOutline(thickness, color) {
+            if (parseFloat(thickness) === 0) return 'none';
+            const t = parseFloat(thickness);
+            let shadow = [];
+            // Generate shadows around the text for a better outline effect
+            // We use 8 directions for a robust outline
+            shadow.push(`${-t}px ${-t}px 0 ${color}`); // Top-left
+            shadow.push(`${0}px ${-t}px 0 ${color}`);  // Top
+            shadow.push(`${t}px ${-t}px 0 ${color}`);  // Top-right
+            shadow.push(`${-t}px ${0}px 0 ${color}`);  // Left
+            shadow.push(`${t}px ${0}px 0 ${color}`);   // Right
+            shadow.push(`${-t}px ${t}px 0 ${color}`);  // Bottom-left
+            shadow.push(`${0}px ${t}px 0 ${color}`);   // Bottom
+            shadow.push(`${t}px ${t}px 0 ${color}`);   // Bottom-right
+
+            return shadow.join(', ');
+        }
+
+
+        function deselectAllElements() {
+            document.querySelectorAll('.element-wrapper').forEach(el => {
+                el.classList.remove('selected');
+                el.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'none');
+                el.querySelector('.rotation-handle').style.display = 'none'; // Hide rotation handle
+            });
+            document.querySelectorAll('.layer-item').forEach(item => item.classList.remove('selected'));
+
+            selectedElementWrapper = null;
+            opacityRange.value = 1;
+            opacityValue.textContent = '100%';
+            rotationRange.value = 0;
+            rotationValue.textContent = '0°';
+
+            // Disable general controls (since no element is selected)
+            opacityRange.disabled = true;
+            rotationRange.disabled = true;
+            duplicateElementBtn.disabled = true;
+            deleteElementBtn.disabled = true;
+            resetOpacityBtn.disabled = true;
+            resetRotationBtn.disabled = true;
+            bringToFrontBtn.disabled = true;
+
+            // Text input is always enabled for new text entry
+            textInput.disabled = false;
+            // Set default values for new text and enable them
+            textColorInput.value = '#FFFFFF'; // Default white text color
+            textBgColorInput.value = '#000000'; // Default black background color
+            toggleTextBg.checked = false; // Default to background DISABLED for new text
+            
+            // Outline controls
+            toggleTextOutline.checked = false; // Default to outline DISABLED for new text
+            textOutlineColorInput.value = '#000000'; // Default black outline color
+            outlineThicknessRange.value = 0;
+            outlineThicknessValue.textContent = '0px';
+
+            // Font size controls
+            fontSizeRange.value = 24; // Default font size
+            fontSizeValue.textContent = '24px';
+
+
+            boldTextBtn.classList.remove('active-style'); // Ensure button is not active
+            italicTextBtn.classList.remove('active-style'); // Ensure button is not active
+
+            // Enable text styling controls by default for new text creation
+            textColorInput.disabled = false;
+            boldTextBtn.disabled = false;
+            italicTextBtn.disabled = false;
+            toggleTextBg.disabled = false; // Enable toggle for new text
+            toggleTextOutline.disabled = false; // Enable toggle for new text
+            fontSizeRange.disabled = false; // Enable font size for new text
+
+            // Also manage the disabled state of textBgColorInput based on toggleTextBg
+            textBgColorInput.disabled = !toggleTextBg.checked;
+            textOutlineColorInput.disabled = !toggleTextOutline.checked;
+            outlineThicknessRange.disabled = !toggleTextOutline.checked;
+
+            // Update label colors for disabled state
+            textBgColorLabel.classList.add('text-gray-600');
+            textBgColorLabel.classList.remove('text-gray-300');
+            textOutlineColorLabel.classList.add('text-gray-600');
+            textOutlineColorLabel.classList.remove('text-gray-300');
+            outlineThicknessLabel.classList.add('text-gray-600');
+            outlineThicknessLabel.classList.remove('text-gray-300');
+
+
+            // Disable video controls
+            videoControlsSection.classList.add('hidden');
+            playPauseBtn.disabled = true;
+            volumeRange.disabled = true;
+            updatePlayPauseButton(true); // Set to play icon (paused state)
+            volumeRange.value = 0.5; // Reset volume slider
+        }
+
+        function selectElement(elementWrapper) {
+            deselectAllElements(); // Deselects current, sets default states for ALL controls
+
+            selectedElementWrapper = elementWrapper;
+            selectedElementWrapper.classList.add('selected');
+            // NO LONGER automatically bring to front on selection
+            selectedElementWrapper.querySelector('.rotation-handle').style.display = 'block';
+
+            const contentElement = selectedElementWrapper.querySelector('.element-content');
+
+            // Only show resize handles if it's NOT a text element
+            if (!contentElement.classList.contains('text-content')) {
+                selectedElementWrapper.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'block');
+            }
+
+
+            // Enable general controls
+            opacityRange.disabled = false;
+            rotationRange.disabled = false;
+            duplicateElementBtn.disabled = false;
+            deleteElementBtn.disabled = false;
+            resetOpacityBtn.disabled = false;
+            resetRotationBtn.disabled = false;
+            bringToFrontBtn.disabled = false;
+
+            // Get current active tab
+            const activeTabButton = document.querySelector('.tab-button.active');
+            const currentTabId = activeTabButton ? activeTabButton.dataset.tab : null;
+
+            // Update sidebar controls based on selected element
+            opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
+            opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
+            rotationRange.value = getRotation(selectedElementWrapper) || 0;
+            rotationValue.textContent = `${Math.round(rotationRange.value)}°`;
+
+
+            if (contentElement.classList.contains('text-content')) {
+                // Text element selected: enable text controls and reflect its style
+                textInput.disabled = false;
+                textInput.value = contentElement.textContent;
+
+                textColorInput.disabled = false;
+                boldTextBtn.disabled = false;
+                italicTextBtn.disabled = false;
+                toggleTextBg.disabled = false; // Enable toggle for text selection
+                toggleTextOutline.disabled = false; // Enable toggle for text selection
+                fontSizeRange.disabled = false; // Enable font size for text selection
+
+                textColorInput.value = contentElement.style.color || '#FFFFFF'; // Default to white if not set
+
+                // Check background status for toggle
+                if (contentElement.style.backgroundColor === 'transparent') {
+                    toggleTextBg.checked = false;
+                    textBgColorInput.value = '#000000'; // Show default black in picker when transparent
+                    textBgColorInput.disabled = true; // Disable color picker if transparent
+                    textBgColorLabel.classList.add('text-gray-600'); // Set label to gray
+                    textBgColorLabel.classList.remove('text-gray-300'); // Remove active color
+                } else {
+                    toggleTextBg.checked = true;
+                    textBgColorInput.value = contentElement.style.backgroundColor || '#000000'; // Default to black if not set
+                    textBgColorInput.disabled = false; // Enable color picker if background is active
+                    textBgColorLabel.classList.remove('text-gray-600'); // Set label to active color
+                    textBgColorLabel.classList.add('text-gray-300');
+                }
+
+                // Check outline status for toggle
+                if (contentElement.style.textShadow && contentElement.style.textShadow !== 'none' && parseFloat(contentElement.style.textShadow.split(' ')[0]) !== 0) {
+                    toggleTextOutline.checked = true;
+                    // Extract color and thickness from textShadow
+                    const shadowParts = contentElement.style.textShadow.split(', ')[0].split(' ');
+                    const thickness = parseFloat(shadowParts[0]);
+                    const color = shadowParts[3]; // Color is usually the 4th part
+
+                    textOutlineColorInput.value = color || '#000000'; // Default if not set
+                    outlineThicknessRange.value = thickness;
+                    outlineThicknessValue.textContent = `${thickness}px`;
+                    textOutlineColorInput.disabled = false;
+                    outlineThicknessRange.disabled = false;
+                    textOutlineColorLabel.classList.remove('text-gray-600'); // Set label to active color
+                    textOutlineColorLabel.classList.add('text-gray-300');
+                    outlineThicknessLabel.classList.remove('text-gray-600'); // Set label to active color
+                    outlineThicknessLabel.classList.add('text-gray-300');
+                } else {
+                    toggleTextOutline.checked = false;
+                    textOutlineColorInput.value = '#000000'; // Default black outline color
+                    outlineThicknessRange.value = 0;
+                    outlineThicknessValue.textContent = '0px';
+                    textOutlineColorInput.disabled = true;
+                    outlineThicknessRange.disabled = true;
+                    textOutlineColorLabel.classList.add('text-gray-600');
+                    textOutlineColorLabel.classList.remove('text-gray-300');
+                    outlineThicknessLabel.classList.add('text-gray-600');
+                    outlineThicknessLabel.classList.remove('text-gray-300');
+                }
+
+                // Update font size controls
+                fontSizeRange.value = parseFloat(contentElement.style.fontSize) || 24;
+                fontSizeValue.textContent = `${fontSizeRange.value}px`;
+
+
+                if (contentElement.classList.contains('font-bold')) {
+                    boldTextBtn.classList.add('active-style');
+                } else {
+                    boldTextBtn.classList.remove('active-style');
+                }
+                if (contentElement.classList.contains('italic')) {
+                    italicTextBtn.classList.add('active-style');
+                } else {
+                    italicTextBtn.classList.remove('active-style');
+                }
+
+                // No cambiar a la pestaña 'text' si ya estamos en 'properties' o 'layers'
+                // if (currentTabId !== 'properties' && currentTabId !== 'layers') {
+                //     document.querySelector('.tab-button[data-tab="text"]').click();
+                // }
+                
+                videoControlsSection.classList.add('hidden'); // Hide video controls
+                playPauseBtn.disabled = true;
+                volumeRange.disabled = true;
+
+            } else if (contentElement.tagName === 'IMG') {
+                // Image selected
+                textInput.value = ''; // Clear text input for new text
+                // Hide video controls
+                videoControlsSection.classList.add('hidden');
+                playPauseBtn.disabled = true;
+                volumeRange.disabled = true;
+
+                // No cambiar a la pestaña 'properties' si ya estamos en 'layers' o 'text'
+                // if (currentTabId !== 'layers' && currentTabId !== 'text') {
+                //     document.querySelector('.tab-button[data-tab="properties"]').click();
+                // }
+            } else if (contentElement.tagName === 'VIDEO') {
+                // Video selected
+                textInput.value = ''; // Clear text input for new text
+
+                // Show and enable video controls
+                videoControlsSection.classList.remove('hidden');
+                playPauseBtn.disabled = false;
+                volumeRange.disabled = false;
+
+                // Update video controls based on current video state
+                updatePlayPauseButton(contentElement.paused);
+                volumeRange.value = contentElement.volume;
+
+                // Add event listeners to video element to sync UI controls
+                contentElement.onpause = () => updatePlayPauseButton(true);
+                contentElement.onplay = () => updatePlayPauseButton(false);
+                contentElement.onvolumechange = () => {
+                    volumeRange.value = contentElement.volume;
+                };
+
+                // No cambiar a la pestaña 'properties' si ya estamos en 'layers' o 'text'
+                // if (currentTabId !== 'layers' && currentTabId !== 'text') {
+                //     document.querySelector('.tab-button[data-tab="properties"]').click();
+                // }
+            }
+
+
+            // Select layer item
+            const layerItem = document.querySelector(`.layer-item[data-id="${elementWrapper.id}"]`);
+            if (layerItem) {
+                layerItem.classList.add('selected');
+            }
+        }
+
+        function getRotation(element) {
+            const transform = element.style.transform;
+            const match = transform.match(/rotate\(([-?\d.]+)deg\)/);
+            return match ? parseFloat(match[1]) : 0;
+        }
+
+        function addHandles(elementWrapper) {
+            // Add resize handles
+            const handles = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+            handles.forEach(pos => {
+                const handle = document.createElement('div');
+                handle.classList.add('resize-handle', pos);
+                handle.style.display = 'none';
+                elementWrapper.appendChild(handle);
+            });
+
+            // Add rotation handle
+            const rotationHandle = document.createElement('div');
+            rotationHandle.classList.add('rotation-handle');
+            rotationHandle.style.display = 'none';
+            elementWrapper.appendChild(rotationHandle);
+        }
+
+        function updateLayersList() {
+            layersList.innerHTML = '';
+            if (allElements.size === 0) {
+                layersList.innerHTML = '<p class="text-gray-400 text-sm">No hay elementos en la página.</p>';
+                return;
+            }
+
+            // Sort elements by z-index to display layers correctly (highest z-index at the top)
+            const sortedElements = Array.from(allElements.values()).sort((a, b) => {
+                return (parseFloat(b.style.zIndex || 0)) - (parseFloat(a.style.zIndex || 0));
+            });
+
+            sortedElements.forEach(elementWrapper => {
+                const contentElement = elementWrapper.querySelector('.element-content');
+                const layerItem = document.createElement('div');
+                layerItem.classList.add('layer-item');
+                layerItem.dataset.id = elementWrapper.id;
+
+                let name;
+                if (contentElement.tagName === 'IMG') {
+                    name = `Imagen: "${elementWrapper.dataset.originalName || contentElement.alt || elementWrapper.id}"`;
+                } else if (contentElement.classList.contains('text-content')) {
+                    name = `Texto: "${contentElement.textContent.substring(0, 20)}${contentElement.textContent.length > 20 ? '...' : ''}"`;
+                } else if (contentElement.tagName === 'VIDEO') {
+                    name = `Video: "${elementWrapper.dataset.originalName || 'Video'}"`;
+                }
+                layerItem.textContent = name;
+
+                if (selectedElementWrapper && selectedElementWrapper.id === elementWrapper.id) {
+                    layerItem.classList.add('selected');
+                }
+                layerItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectElement(elementWrapper);
+                });
+
+                // Add drag handles for reordering layers
+                const dragHandle = document.createElement('span');
+                dragHandle.innerHTML = '&#9776;'; // Hamburger icon
+                dragHandle.classList.add('drag-handle', 'mr-2', 'cursor-move', 'text-gray-400', 'hover:text-white');
+                dragHandle.setAttribute('draggable', 'true');
+                layerItem.prepend(dragHandle); // Add handle at the beginning
+
+                layersList.appendChild(layerItem);
+            });
+        }
+
+        function updatePlayPauseButton(isPaused) {
+            if (isPaused) {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            } else {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            }
+        }
+
+        function updateFileCountDisplay() {
+            fileCountDisplay.textContent = `${allElements.size}/${fileLimit}`;
+            if (allElements.size >= fileLimit) {
+                imageUpload.disabled = true;
+                // Since we're using a custom button, we might want to disable that visual button
+                imageUpload.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+                imageUpload.parentElement.style.pointerEvents = 'none'; // Make it truly non-clickable
+                selectFileButtonText.textContent = 'Límite alcanzado'; // Change button text
+                imageUpload.parentElement.classList.remove('hover:bg-purple-700');
+                dropArea.classList.add('opacity-50', 'cursor-not-allowed');
+                dropArea.style.pointerEvents = 'none';
+            } else {
+                imageUpload.disabled = false;
+                imageUpload.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+                imageUpload.parentElement.style.pointerEvents = 'auto';
+                selectFileButtonText.textContent = 'Seleccionar archivo'; // Restore original button text
+                imageUpload.parentElement.classList.add('hover:bg-purple-700');
+                dropArea.classList.remove('opacity-50', 'cursor-not-allowed');
+                dropArea.style.pointerEvents = 'auto';
+            }
+        }
+
+        // --- Event Handlers ---
+
+        // Handle image/GIF/Video upload
+        // This function will be called by both file input change and drag-and-drop
+        function handleFile(file) {
+            if (allElements.size >= fileLimit) {
+                console.warn('File upload limit reached (50 files).');
+                return;
+            }
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const wrapperDiv = document.createElement('div');
+                    wrapperDiv.id = generateUniqueId();
+                    wrapperDiv.classList.add('element-wrapper');
+                    
+                    // Calculate center of the canvas in unscaled coordinates (relative to editorCanvas's current size)
+                    const editorCanvasRect = editorCanvas.getBoundingClientRect(); // Scaled bounding box of the canvas
+                    const initialWidth = 100; // Default width for images/videos
+                    const initialHeight = 100; // Default height for images/videos
+
+                    // Convert the *center* of the currently visible canvas area to unscaled coordinates
+                    // This is more robust as it accounts for current scroll and zoom if any
+                    const canvasCenterX = (editorCanvasRect.width / (2 * currentZoom));
+                    const canvasCenterY = (editorCanvasRect.height / (2 * currentZoom));
+
+                    const initialLeft = canvasCenterX - (initialWidth / 2);
+                    const initialTop = canvasCenterY - (initialHeight / 2);
+
+                    wrapperDiv.style.left = `${initialLeft}px`;
+                    wrapperDiv.style.top = `${initialTop}px`;
+
+                    wrapperDiv.style.minWidth = '50px';
+                    wrapperDiv.style.minHeight = '30px';
+                    wrapperDiv.style.zIndex = getNextHighestZIndex(); // New elements come on top
+                    wrapperDiv.style.transform = 'rotate(0deg)';
+
+                    let mediaElement;
+                    if (file.type.startsWith('image/')) {
+                        mediaElement = document.createElement('img');
+                        mediaElement.src = e.target.result;
+                        mediaElement.alt = file.name;
+                        wrapperDiv.dataset.originalName = file.name; // Store original file name
+                        wrapperDiv.style.width = '100px'; // Initial small width for images (unscaled)
+                        wrapperDiv.style.height = 'auto'; // Auto height to maintain aspect ratio (unscaled)
+                    } else if (file.type.startsWith('video/')) {
+                        mediaElement = document.createElement('video');
+                        mediaElement.src = e.target.result;
+                        mediaElement.controls = false; // We'll use custom controls
+                        mediaElement.loop = true; // Auto-loop for editor preview
+                        mediaElement.muted = true; // Start muted in editor
+                        mediaElement.autoplay = false; // No autoplay por defecto
+                        mediaElement.preload = 'auto'; // Preload metadata and first frame
+                        wrapperDiv.dataset.originalName = file.name; // Store original file name
+                        wrapperDiv.style.width = '100px'; // Initial small width for videos (unscaled)
+                        wrapperDiv.style.height = 'auto'; // Auto height for videos (unscaled)
+                    } else {
+                        console.warn('Unsupported file type:', file.type);
+                        return; // Skip unsupported files
+                    }
+                    
+                    mediaElement.classList.add('element-content');
+                    mediaElement.style.opacity = '1';
+
+                    wrapperDiv.appendChild(mediaElement);
+                    addHandles(wrapperDiv);
+
+                    editorCanvas.appendChild(wrapperDiv); 
+                    allElements.set(wrapperDiv.id, wrapperDiv);
+                    updateLayersList();
+                    updateFileCountDisplay(); // Update counter
+
+                    if (file.type.startsWith('image/')) {
+                        mediaElement.onload = () => {
+                            // Adjust wrapper height after image loads to fit content (unscaled)
+                            // Note: offsetHeight here refers to the actual rendered height within the canvas
+                            wrapperDiv.style.height = `${mediaElement.offsetHeight}px`; 
+                        };
+                    } else if (file.type.startsWith('video/')) {
+                         mediaElement.onloadedmetadata = () => {
+                            // Adjust wrapper height based on video's natural aspect ratio if possible (unscaled)
+                            if (mediaElement.videoWidth && mediaElement.videoHeight) {
+                                const aspectRatio = mediaElement.videoWidth / mediaElement.videoHeight;
+                                // Use wrapperDiv.offsetWidth (unscaled)
+                                wrapperDiv.style.height = `${wrapperDiv.offsetWidth / aspectRatio}px`;
+                            }
+                            updatePlayPauseButton(true); // Actualiza el botón a estado de pausa
+                        };
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        imageUpload.addEventListener('change', (event) => {
+            if (event.target.files.length > 0) {
+                handleFile(event.target.files[0]);
+                event.target.value = ''; // Clear the selected file in input
+            }
+        });
+
+        // Handle adding text
+        addTextBtn.addEventListener('click', () => {
+            if (allElements.size >= fileLimit) {
+                console.warn('File upload limit reached (50 files). Cannot add more text elements.');
+                return;
+            }
+
+            const textContent = textInput.value.trim() === '' ? 'Nuevo Texto' : textInput.value;
+
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.id = generateUniqueId();
+            wrapperDiv.classList.add('element-wrapper');
+            
+            // Calculate center of the canvas in unscaled coordinates
+            const editorCanvasRect = editorCanvas.getBoundingClientRect(); // Scaled bounding box of the canvas
+            const elementInitialWidth = 100; // Default width for text
+            const elementInitialHeight = 50; // Default height for text
+
+            // Convert the *center* of the currently visible canvas area to unscaled coordinates
+            const canvasCenterX = (editorCanvasRect.width / (2 * currentZoom));
+            const canvasCenterY = (editorCanvasRect.height / (2 * currentZoom));
+
+            const initialLeft = canvasCenterX - (elementInitialWidth / 2);
+            const initialTop = canvasCenterY - (elementInitialHeight / 2);
+
+            wrapperDiv.style.left = `${initialLeft}px`;
+            wrapperDiv.style.top = `${initialTop}px`;
+
+            wrapperDiv.style.minWidth = '50px';
+            wrapperDiv.style.minHeight = '30px';
+            wrapperDiv.style.zIndex = getNextHighestZIndex(); // New elements come on top
+            wrapperDiv.style.transform = 'rotate(0deg)';
+            // Set width and height to 'auto' for text elements to allow self-sizing (unscaled)
+            wrapperDiv.style.width = 'auto';
+            wrapperDiv.style.height = 'auto';
+
+            wrapperDiv.dataset.originalName = 'Text Element'; // Store a generic name for text elements
+
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('element-content', 'text-content', 'text-lg');
+            textDiv.contentEditable = true;
+            textDiv.textContent = textContent;
+            textDiv.style.opacity = '1';
+
+            // Apply current text styling from controls
+            textDiv.style.color = textColorInput.value;
+            textDiv.style.webkitTextFillColor = textColorInput.value; // For webkit browsers with text-stroke
+            textDiv.style.fontSize = `${fontSizeRange.value}px`;
+
+            // Apply background based on toggle state
+            if (toggleTextBg.checked) {
+                textDiv.style.backgroundColor = textBgColorInput.value;
+            } else {
+                textDiv.style.backgroundColor = 'transparent';
+            }
+
+            // Apply text outline based on toggle and values
+            if (toggleTextOutline.checked) {
+                const thickness = outlineThicknessRange.value;
+                const color = textOutlineColorInput.value;
+                textDiv.style.webkitTextStrokeWidth = `${thickness}px`;
+                textDiv.style.webkitTextStrokeColor = color;
+                textDiv.style.textShadow = generateTextShadowForOutline(thickness, color);
+            } else {
+                textDiv.style.webkitTextStrokeWidth = '0';
+                textDiv.style.webkitTextStrokeColor = 'transparent';
+                textDiv.style.textShadow = 'none';
+            }
+
+            // Apply bold/italic based on active-style class on buttons
+            if (boldTextBtn.classList.contains('active-style')) {
+                textDiv.classList.add('font-bold');
+            }
+            if (italicTextBtn.classList.contains('active-style')) {
+                textDiv.classList.add('italic');
+            }
+
+            wrapperDiv.appendChild(textDiv);
+            addHandles(wrapperDiv);
+
+            editorCanvas.appendChild(wrapperDiv); 
+            allElements.set(wrapperDiv.id, wrapperDiv);
+            textDiv.focus();
+            updateLayersList();
+            updateFileCountDisplay(); // Update counter
+        });
+
+        // Sync text input with selected text element
+        textInput.addEventListener('input', () => {
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                selectedElementWrapper.querySelector('.element-content').textContent = textInput.value;
+                // For text content, ensure the wrapper's size adjusts if it's in auto mode
+                selectedElementWrapper.style.width = 'auto';
+                selectedElementWrapper.style.height = 'auto';
+                updateLayersList(); // Update layer name if text content changes
+            }
+        });
+
+        // Handle opacity change
+        opacityRange.addEventListener('input', () => {
+            if (selectedElementWrapper) {
+                selectedElementWrapper.querySelector('.element-content').style.opacity = opacityRange.value;
+                opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
+            }
+        });
+
+        // Handle rotation range change (synced with manual rotation)
+        rotationRange.addEventListener('input', () => {
+            if (selectedElementWrapper) {
+                selectedElementWrapper.style.transform = `rotate(${rotationRange.value}deg)`;
+                rotationValue.textContent = `${Math.round(rotationRange.value)}°`;
+            }
+        });
+
+        // Handle Duplicate Element
+        duplicateElementBtn.addEventListener('click', () => {
+            if (allElements.size >= fileLimit) {
+                console.warn('File upload limit reached (50 files).');
+                return;
+            }
+
+            if (selectedElementWrapper) {
+                const clonedWrapper = selectedElementWrapper.cloneNode(true); // Deep clone
+                const newId = generateUniqueId();
+                clonedWrapper.id = newId;
+                // Position relative to viewport now
+                clonedWrapper.style.left = `${selectedElementWrapper.offsetLeft + 20}px`;
+                clonedWrapper.style.top = `${selectedElementWrapper.offsetTop + 20}px`;
+                clonedWrapper.style.zIndex = getNextHighestZIndex(); // Duplicated elements come on top
+
+                clonedWrapper.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'none');
+                clonedWrapper.querySelector('.rotation-handle').style.display = 'none';
+
+                // If it's a video, ensure it's paused/muted on duplicate to avoid multiple sounds
+                const clonedContent = clonedWrapper.querySelector('.element-content');
+                if (clonedContent.tagName === 'VIDEO') {
+                    clonedContent.muted = true;
+                    clonedContent.pause(); // Ensure cloned video is paused
+                    clonedContent.currentTime = 0; // Reset video to start
+                }
+
+                editorCanvas.appendChild(clonedWrapper);
+                allElements.set(newId, clonedWrapper);
+                selectElement(clonedWrapper);
+                updateLayersList();
+                updateFileCountDisplay(); // Update counter
+            }
+        });
+
+        // Handle Delete Element (direct deletion)
+        deleteElementBtn.addEventListener('click', () => {
+            if (selectedElementWrapper) {
+                const contentElement = selectedElementWrapper.querySelector('.element-content');
+                if (contentElement.tagName === 'VIDEO') {
+                    contentElement.pause(); // Pause video before removing
+                    contentElement.src = ''; // Clear source to release resources
+                    contentElement.load();
+                }
+                allElements.delete(selectedElementWrapper.id);
+                selectedElementWrapper.remove();
+                deselectAllElements();
+                updateLayersList();
+                updateFileCountDisplay(); // Update counter
+            }
+        });
+
+        // --- Text Styling Event Listeners ---
+        textColorInput.addEventListener('input', () => {
+            // Apply to selected element if it's text, otherwise this changes the default for new text
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                const textElement = selectedElementWrapper.querySelector('.element-content');
+                textElement.style.color = textColorInput.value;
+                textElement.style.webkitTextFillColor = textColorInput.value; // Important for stroke to work correctly
+                if (toggleTextOutline.checked) {
+                    // Update text-shadow for outline if outline is active
+                    textElement.style.textShadow = generateTextShadowForOutline(outlineThicknessRange.value, textOutlineColorInput.value);
+                }
+            }
+        });
+
+        textBgColorInput.addEventListener('input', () => {
+            // Apply to selected element if it's text, otherwise this changes the default for new text
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                selectedElementWrapper.querySelector('.element-content').style.backgroundColor = textBgColorInput.value;
+            }
+        });
+
+        boldTextBtn.addEventListener('click', () => {
+            // Apply to selected element if it's text, otherwise this changes the default for new text
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                selectedElementWrapper.querySelector('.element-content').classList.toggle('font-bold');
+            }
+            boldTextBtn.classList.toggle('active-style'); // Always toggle button active state
+        });
+
+        italicTextBtn.addEventListener('click', () => {
+            // Apply to selected element if it's text, otherwise this changes the default for new text
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                selectedElementWrapper.querySelector('.element-content').classList.toggle('italic');
+            }
+            italicTextBtn.classList.toggle('active-style'); // Always toggle button active state
+        });
+
+        // Handle background toggle change
+        toggleTextBg.addEventListener('change', () => {
+            // If a text element is selected, apply change directly
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                const textElement = selectedElementWrapper.querySelector('.element-content');
+                if (toggleTextBg.checked) {
+                    textElement.style.backgroundColor = textBgColorInput.value;
+                    textBgColorInput.disabled = false; // Enable color picker
+                    textBgColorLabel.classList.remove('text-gray-600'); // Set label to active color
+                    textBgColorLabel.classList.add('text-gray-300');
+                } else {
+                    textElement.style.backgroundColor = 'transparent';
+                    textBgColorInput.disabled = true; // Disable color picker
+                    textBgColorLabel.classList.add('text-gray-600'); // Set label to gray
+                    textBgColorLabel.classList.remove('text-gray-300');
+                }
+            } else {
+                // If no text element is selected, this change applies to the default for new text.
+                // The color input's disabled state is managed here when toggleTextBg changes.
+                 textBgColorInput.disabled = !toggleTextBg.checked;
+                 if (toggleTextBg.checked) {
+                     textBgColorLabel.classList.remove('text-gray-600');
+                     textBgColorLabel.classList.add('text-gray-300');
+                 } else {
+                     textBgColorLabel.classList.add('text-gray-600');
+                     textBgColorLabel.classList.remove('text-gray-300');
+                 }
+            }
+        });
+
+        // Handle outline toggle change
+        toggleTextOutline.addEventListener('change', () => {
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                const textElement = selectedElementWrapper.querySelector('.element-content');
+                if (toggleTextOutline.checked) {
+                    const thickness = outlineThicknessRange.value;
+                    const color = textOutlineColorInput.value;
+                    textElement.style.webkitTextStrokeWidth = `${thickness}px`;
+                    textElement.style.webkitTextStrokeColor = color;
+                    textElement.style.textShadow = generateTextShadowForOutline(thickness, color);
+                    textOutlineColorInput.disabled = false;
+                    outlineThicknessRange.disabled = false;
+                    textOutlineColorLabel.classList.remove('text-gray-600');
+                    textOutlineColorLabel.classList.add('text-gray-300');
+                    outlineThicknessLabel.classList.remove('text-gray-600');
+                    outlineThicknessLabel.classList.add('text-gray-300');
+                } else {
+                    textElement.style.webkitTextStrokeWidth = '0';
+                    textElement.style.webkitTextStrokeColor = 'transparent';
+                    textElement.style.textShadow = 'none';
+                    textOutlineColorInput.disabled = true;
+                    outlineThicknessRange.disabled = true;
+                    textOutlineColorLabel.classList.add('text-gray-600');
+                    textOutlineColorLabel.classList.remove('text-gray-300');
+                    outlineThicknessLabel.classList.add('text-gray-600');
+                    outlineThicknessLabel.classList.remove('text-gray-300');
+                }
+            } else {
+                // For new text, just update the disabled state of the color/thickness inputs
+                textOutlineColorInput.disabled = !toggleTextOutline.checked;
+                outlineThicknessRange.disabled = !toggleTextOutline.checked;
+                if (toggleTextOutline.checked) {
+                    textOutlineColorLabel.classList.remove('text-gray-600');
+                    textOutlineColorLabel.classList.add('text-gray-300');
+                    outlineThicknessLabel.classList.remove('text-gray-600');
+                    outlineThicknessLabel.classList.add('text-gray-300');
+                } else {
+                    textOutlineColorLabel.classList.add('text-gray-600');
+                    textOutlineColorLabel.classList.remove('text-gray-300');
+                    outlineThicknessLabel.classList.add('text-gray-600');
+                    outlineThicknessLabel.classList.remove('text-gray-300');
+                }
+            }
+        });
+
+        textOutlineColorInput.addEventListener('input', () => {
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content') && toggleTextOutline.checked) {
+                const textElement = selectedElementWrapper.querySelector('.element-content');
+                textElement.style.webkitTextStrokeColor = textOutlineColorInput.value;
+                textElement.style.textShadow = generateTextShadowForOutline(outlineThicknessRange.value, textOutlineColorInput.value);
+            }
+        });
+
+        outlineThicknessRange.addEventListener('input', () => {
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content') && toggleTextOutline.checked) {
+                const textElement = selectedElementWrapper.querySelector('.element-content');
+                const thickness = outlineThicknessRange.value;
+                const color = textOutlineColorInput.value;
+                textElement.style.webkitTextStrokeWidth = `${thickness}px`;
+                textElement.style.webkitTextStrokeColor = color; // Ensure color is applied with thickness
+                textElement.style.textShadow = generateTextShadowForOutline(thickness, color);
+                outlineThicknessValue.textContent = `${thickness}px`;
+            } else {
+                outlineThicknessValue.textContent = `${outlineThicknessRange.value}px`; // Update display for new text even if disabled
+            }
+        });
+
+        // Font size control
+        fontSizeRange.addEventListener('input', () => {
+            if (selectedElementWrapper && selectedElementWrapper.querySelector('.element-content').classList.contains('text-content')) {
+                selectedElementWrapper.querySelector('.element-content').style.fontSize = `${fontSizeRange.value}px`;
+                // When font size changes, the text element's wrapper should re-adjust
+                // This ensures the background always fits the new text size.
+                selectedElementWrapper.style.width = 'auto';
+                selectedElementWrapper.style.height = 'auto';
+            }
+            fontSizeValue.textContent = `${fontSizeRange.value}px`;
+        });
+
+
+        // --- Reset Buttons Event Listeners ---
+        resetOpacityBtn.addEventListener('click', () => {
+            if (selectedElementWrapper) {
+                selectedElementWrapper.querySelector('.element-content').style.opacity = '1';
+                opacityRange.value = 1;
+                opacityValue.textContent = '100%';
+            }
+        });
+
+        resetRotationBtn.addEventListener('click', () => {
+            if (selectedElementWrapper) {
+                selectedElementWrapper.style.transform = 'rotate(0deg)';
+                rotationRange.value = 0;
+                rotationValue.textContent = '0°';
+            }
+        });
+
+        // --- Video Controls Event Listeners ---
+        playPauseBtn.addEventListener('click', () => {
+            if (selectedElementWrapper) {
+                const videoElement = selectedElementWrapper.querySelector('video');
+                if (videoElement) {
+                    if (videoElement.paused) {
+                        videoElement.play();
+                    } else {
+                        videoElement.pause();
+                    }
+                    updatePlayPauseButton(videoElement.paused);
+                }
+            }
+        });
+
+        volumeRange.addEventListener('input', () => {
+            if (selectedElementWrapper) {
+                const videoElement = selectedElementWrapper.querySelector('video');
+                if (videoElement) {
+                    videoElement.volume = volumeRange.value;
+                    // If volume is 0, mute the video
+                    if (videoElement.volume === 0) {
+                        videoElement.muted = true;
+                    } else {
+                        videoElement.muted = false;
+                    }
+                }
+            }
+        });
+
+        // --- "Bring to Front" Button Event Listener ---
+        bringToFrontBtn.addEventListener('click', () => {
+            if (selectedElementWrapper) {
+                selectedElementWrapper.style.zIndex = getNextHighestZIndex(); // Explicitly bring to front
+                updateLayersList(); // Re-render layers to reflect new order
+                // Re-select to ensure it stays highlighted and controls are active
+                selectElement(selectedElementWrapper);
+            }
+        });
+
+        // --- Dragging, Resizing, and Rotation Logic ---
+        document.addEventListener('mousedown', (e) => {
+            const target = e.target;
+            const clickedWrapper = target.closest('.element-wrapper');
+
+            // Get canvas bounding rectangle (this is scaled)
+            const canvasRect = editorCanvas.getBoundingClientRect();
+            
+            // Calculate mouse position relative to the unscaled canvas's top-left
+            // This accounts for the canvas's position on the page and the current zoom level.
+            const mouseXOnUnscaledCanvas = (e.clientX - canvasRect.left) / currentZoom;
+            const mouseYOnUnscaledCanvas = (e.clientY - canvasRect.top) / currentZoom;
+
+            // Check if click is on an element wrapper or its handles
+            if (clickedWrapper) {
+                // If the click is on a resize handle
+                if (target.classList.contains('resize-handle')) {
+                    e.preventDefault();
+                    isResizing = true;
+                    selectedElementWrapper = clickedWrapper;
+                    selectElement(selectedElementWrapper); // Select the element
+
+                    // Set activeHandle based on the specific class of the resize handle
+                    activeHandle = Array.from(target.classList).find(cls => cls.startsWith('top-') || cls.startsWith('bottom-'));
+                    
+                    // Store initial mouse position in unscaled canvas coordinates
+                    initialMouseX = mouseXOnUnscaledCanvas;
+                    initialMouseY = mouseYOnUnscaledCanvas;
+
+                    // Store initial element properties in unscaled canvas coordinates
+                    initialLeft = selectedElementWrapper.offsetLeft;
+                    initialTop = selectedElementWrapper.offsetTop;
+                    initialWidth = selectedElementWrapper.offsetWidth; 
+                    initialHeight = selectedElementWrapper.offsetHeight; 
+                    return;
+                }
+
+                // If the click is on a rotation handle
+                if (target.classList.contains('rotation-handle')) {
+                    e.preventDefault();
+                    isRotating = true;
+                    selectedElementWrapper = clickedWrapper;
+                    selectElement(selectedElementWrapper); // Select the element
+
+                    // Get the *scaled* bounding rectangle of the element for rotation calculation
+                    const rect = selectedElementWrapper.getBoundingClientRect(); 
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+
+                    initialRotationAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX); // Uses viewport coords
+                    initialElementRotation = getRotation(selectedElementWrapper);
+                    return;
+                }
+
+                // If click is directly on the element wrapper (for dragging)
+                e.preventDefault();
+                isDragging = true;
+                selectElement(clickedWrapper); // Select the element
+
+                // Store initial mouse position in unscaled canvas coordinates
+                initialMouseX = mouseXOnUnscaledCanvas;
+                initialMouseY = mouseYOnUnscaledCanvas;
+
+                // Store initial element position in unscaled canvas coordinates
+                initialLeft = selectedElementWrapper.offsetLeft;
+                initialTop = selectedElementWrapper.offsetTop;
+            } else if (!target.closest('aside') && !target.closest('.zoom-controls') && !target.closest('.modal')) { // If click is not on a wrapper, sidebar, zoom controls, or a modal
+                deselectAllElements();
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            const canvasRect = editorCanvas.getBoundingClientRect();
+            const currentMouseXOnUnscaledCanvas = (e.clientX - canvasRect.left) / currentZoom;
+            const currentMouseYOnUnscaledCanvas = (e.clientY - canvasRect.top) / currentZoom;
+
+            if (isDragging && selectedElementWrapper) {
+                e.preventDefault();
+                const dx = currentMouseXOnUnscaledCanvas - initialMouseX;
+                const dy = currentMouseYOnUnscaledCanvas - initialMouseY;
+
+                let newLeft = initialLeft + dx;
+                let newTop = initialTop + dy;
+
+                // No clamping here to allow elements to move freely outside the canvas bounds
+                selectedElementWrapper.style.left = `${newLeft}px`;
+                selectedElementWrapper.style.top = `${newTop}px`;
+            } else if (isResizing && selectedElementWrapper) {
+                e.preventDefault();
+                const dx = currentMouseXOnUnscaledCanvas - initialMouseX;
+                const dy = currentMouseYOnUnscaledCanvas - initialMouseY;
+
+                let newWidth = initialWidth;
+                let newHeight = initialHeight;
+                let newLeft = initialLeft;
+                let newTop = initialTop;
+
+                // Use activeHandle to determine resizing direction
+                switch (activeHandle) {
+                    case 'top-left':
+                        newWidth = initialWidth - dx;
+                        newHeight = initialHeight - dy;
+                        newLeft = initialLeft + dx;
+                        newTop = initialTop + dy;
+                        break;
+                    case 'top-right':
+                        newWidth = initialWidth + dx;
+                        newHeight = initialHeight - dy;
+                        newTop = initialTop + dy;
+                        break;
+                    case 'bottom-left':
+                        newWidth = initialWidth - dx;
+                        newHeight = initialHeight + dy;
+                        newLeft = initialLeft + dx;
+                        break;
+                    case 'bottom-right':
+                        newWidth = initialWidth + dx;
+                        newHeight = initialHeight + dy;
+                        break;
+                }
+
+                const contentElement = selectedElementWrapper.querySelector('.element-content');
+                // Maintain aspect ratio for images and videos
+                if (contentElement && (contentElement.tagName === 'IMG' || contentElement.tagName === 'VIDEO')) {
+                    const originalAspectRatio = initialWidth / initialHeight;
+                    // Recalculate newHeight based on newWidth and aspect ratio to maintain proportions
+                    let newHeightFromWidth = newWidth / originalAspectRatio;
+
+                    // Prioritize width changes for right handles, height changes for bottom handles, or calculate based on which change is larger.
+                    // For simplicity, let's just adjust height based on width for now, as it's common.
+                    newHeight = newHeightFromWidth; 
+                    
+                    // If height changed significantly, recalculate width based on height
+                    if (Math.abs(newHeightFromWidth - (initialHeight + dy)) > Math.abs(newWidth - (initialWidth + dx))) {
+                        newWidth = newHeight * originalAspectRatio;
+                    }
+
+                    // Adjust position if top or left handles are used and aspect ratio changes
+                    if (activeHandle.startsWith('top-') && newHeight !== initialHeight) {
+                        newTop = initialTop + (initialHeight - newHeight);
+                    }
+                    if (activeHandle.endsWith('-left') && newWidth !== initialWidth) {
+                        newLeft = initialLeft + (initialWidth - newWidth);
+                    }
+                }
+
+                // Ensure minimum size (unscaled)
+                newWidth = Math.max(20, newWidth);
+                newHeight = Math.max(20, newHeight);
+
+                selectedElementWrapper.style.width = `${newWidth}px`;
+                selectedElementWrapper.style.height = `${newHeight}px`;
+                selectedElementWrapper.style.left = `${newLeft}px`;
+                selectedElementWrapper.style.top = `${newTop}px`;
+
+                // Update initial mouse position for the next move
+                initialMouseX = currentMouseXOnUnscaledCanvas;
+                initialMouseY = currentMouseYOnUnscaledCanvas;
+                initialWidth = newWidth;
+                initialHeight = newHeight;
+                initialLeft = newLeft;
+                initialTop = newTop;
+
+            } else if (isRotating && selectedElementWrapper) {
+                e.preventDefault();
+                // Get the *scaled* bounding rectangle of the element for rotation calculation
+                const rect = selectedElementWrapper.getBoundingClientRect(); 
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+                const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
+                let newRotation = initialElementRotation + angleDiff;
+
+                newRotation = (newRotation % 360 + 360) % 360;
+
+                selectedElementWrapper.style.transform = `rotate(${newRotation}deg)`;
+                rotationRange.value = newRotation;
+                rotationValue.textContent = `${Math.round(newRotation)}°`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            isResizing = false;
+            isRotating = false;
+            activeHandle = '';
+        });
+
+        // --- Touch Events (modified to include rotation) ---
+        document.addEventListener('touchstart', (e) => {
+            const target = e.target;
+            const clickedWrapper = target.closest('.element-wrapper');
+
+            // Get canvas bounding rectangle (this is scaled)
+            const canvasRect = editorCanvas.getBoundingClientRect();
+            // Convert touch coordinates to relative to the unscaled canvas's top-left
+            const touchXOnUnscaledCanvas = (e.touches[0].clientX - canvasRect.left) / currentZoom;
+            const touchYOnUnscaledCanvas = (e.touches[0].clientY - canvasRect.top) / currentZoom;
+
+            if (e.touches.length === 1) {
+                if (clickedWrapper) {
+                     // If the touch is on a resize handle
+                    if (target.classList.contains('resize-handle')) {
+                        e.preventDefault();
+                        isResizing = true;
+                        selectedElementWrapper = clickedWrapper;
+                        selectElement(selectedElementWrapper); // Select the element
+
+                        // Set activeHandle based on the specific class of the resize handle
+                        activeHandle = Array.from(target.classList).find(cls => cls.startsWith('top-') || cls.startsWith('bottom-'));
+                        
+                        // Store initial touch position in unscaled canvas coordinates
+                        initialMouseX = touchXOnUnscaledCanvas;
+                        initialMouseY = touchYOnUnscaledCanvas;
+
+                        // Store initial element properties in unscaled canvas coordinates
+                        initialLeft = selectedElementWrapper.offsetLeft;
+                        initialTop = selectedElementWrapper.offsetTop;
+                        initialWidth = selectedElementWrapper.offsetWidth; 
+                        initialHeight = selectedElementWrapper.offsetHeight; 
+                        return;
+                    }
+
+                    // If the touch is on a rotation handle
+                    if (target.classList.contains('rotation-handle')) {
+                        e.preventDefault();
+                        isRotating = true;
+                        selectedElementWrapper = clickedWrapper;
+                        selectElement(selectedElementWrapper); // Select the element
+
+                        const rect = selectedElementWrapper.getBoundingClientRect(); // This is scaled in viewport coords
+                        const centerX = rect.left + rect.width / 2;
+                        const centerY = rect.top + rect.height / 2;
+
+                        initialRotationAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX); // Uses viewport coords
+                        initialElementRotation = getRotation(selectedElementWrapper);
+                        return;
+                    }
+
+                    // If touch is directly on the element wrapper (for dragging)
+                    e.preventDefault();
+                    isDragging = true;
+                    selectElement(clickedWrapper); // Select the element
+
+                    // Store initial touch position in unscaled canvas coordinates
+                    initialMouseX = touchXOnUnscaledCanvas;
+                    initialMouseY = touchYOnUnscaledCanvas;
+
+                    // Store initial element position in unscaled canvas coordinates
+                    initialLeft = clickedWrapper.offsetLeft;
+                    initialTop = clickedWrapper.offsetTop;
+                } else if (!target.closest('aside') && !target.closest('.zoom-controls') && !target.closest('.modal')) { // If click is not on a wrapper, sidebar, zoom controls, or a modal
+                    deselectAllElements();
+                }
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            const canvasRect = editorCanvas.getBoundingClientRect();
+            const currentTouchXOnUnscaledCanvas = (e.touches[0].clientX - canvasRect.left) / currentZoom;
+            const currentTouchYOnUnscaledCanvas = (e.touches[0].clientY - canvasRect.top) / currentZoom;
+
+            if (e.touches.length === 1) {
+                if (isDragging && selectedElementWrapper) {
+                    e.preventDefault();
+                    const dx = currentTouchXOnUnscaledCanvas - initialMouseX;
+                    const dy = currentTouchYOnUnscaledCanvas - initialMouseY;
+
+                    let newLeft = initialLeft + dx;
+                    let newTop = initialTop + dy;
+
+                    // No clamping here to allow elements to move freely outside the canvas bounds
+                    selectedElementWrapper.style.left = `${newLeft}px`;
+                    selectedElementWrapper.style.top = `${newTop}px`;
+                } else if (isResizing && selectedElementWrapper) {
+                    e.preventDefault();
+                    const dx = currentTouchXOnUnscaledCanvas - initialMouseX;
+                    const dy = currentTouchYOnUnscaledCanvas - initialMouseY;
+
+                    let newWidth = initialWidth;
+                    let newHeight = initialHeight;
+                    let newLeft = initialLeft;
+                    let newTop = initialTop;
+
+                    // Use activeHandle to determine resizing direction
+                    switch (activeHandle) {
+                        case 'top-left':
+                            newWidth = initialWidth - dx;
+                            newHeight = initialHeight - dy;
+                            newLeft = initialLeft + dx;
+                            newTop = initialTop + dy;
+                            break;
+                        case 'top-right':
+                            newWidth = initialWidth + dx;
+                            newHeight = initialHeight - dy;
+                            newTop = initialTop + dy;
+                            break;
+                        case 'bottom-left':
+                            newWidth = initialWidth - dx;
+                            newHeight = initialHeight + dy;
+                            newLeft = initialLeft + dx;
+                            break;
+                        case 'bottom-right':
+                            newWidth = initialWidth + dx;
+                            newHeight = initialHeight + dy;
+                            break;
+                    }
+
+                    const contentElement = selectedElementWrapper.querySelector('.element-content');
+                    // Maintain aspect ratio for images and videos
+                    if (contentElement && (contentElement.tagName === 'IMG' || contentElement.tagName === 'VIDEO')) {
+                        const originalAspectRatio = initialWidth / initialHeight;
+                        // Recalculate newHeight based on newWidth and aspect ratio to maintain proportions
+                        let newHeightFromWidth = newWidth / originalAspectRatio;
+
+                        // Prioritize width changes for right handles, height changes for bottom handles, or calculate based on which change is larger.
+                        // For simplicity, let's just adjust height based on width for now, as it's common.
+                        newHeight = newHeightFromWidth; 
+                        
+                        // If height changed significantly, recalculate width based on height
+                        if (Math.abs(newHeightFromWidth - (initialHeight + dy)) > Math.abs(newWidth - (initialWidth + dx))) {
+                            newWidth = newHeight * originalAspectRatio;
+                        }
+
+                        // Adjust position if top or left handles are used and aspect ratio changes
+                        if (activeHandle.startsWith('top-') && newHeight !== initialHeight) {
+                            newTop = initialTop + (initialHeight - newHeight);
+                        }
+                        if (activeHandle.endsWith('-left') && newWidth !== initialWidth) {
+                            newLeft = initialLeft + (initialWidth - newWidth);
+                        }
+                    }
+
+                    // Ensure minimum size (unscaled)
+                    newWidth = Math.max(20, newWidth);
+                    newHeight = Math.max(20, newHeight);
+
+                    selectedElementWrapper.style.width = `${newWidth}px`;
+                    selectedElementWrapper.style.height = `${newHeight}px`;
+                    selectedElementWrapper.style.left = `${newLeft}px`;
+                    selectedElementWrapper.style.top = `${newTop}px`;
+
+                    // Update initial mouse position for the next move
+                    initialMouseX = currentTouchXOnUnscaledCanvas;
+                    initialMouseY = currentTouchYOnUnscaledCanvas;
+                    initialWidth = newWidth;
+                    initialHeight = newHeight;
+                    initialLeft = newLeft;
+                    initialTop = newTop;
+
+                } else if (isRotating && selectedElementWrapper) {
+                    e.preventDefault();
+                    const rect = selectedElementWrapper.getBoundingClientRect(); // This is scaled in viewport coords
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+
+                    const currentAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX);
+                    const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
+                    let newRotation = initialElementRotation + angleDiff;
+
+                    newRotation = (newRotation % 360 + 360) % 360;
+
+                    selectedElementWrapper.style.transform = `rotate(${newRotation}deg)`;
+                    rotationRange.value = newRotation;
+                    rotationValue.textContent = `${Math.round(newRotation)}°`;
+                }
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+            isResizing = false;
+            isRotating = false;
+            activeHandle = '';
+        });
+
+        // --- Tab Logic ---
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.dataset.tab;
+
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+                button.classList.add('active');
+                document.getElementById(`tab-content-${tabId}`).classList.add('active');
+            });
+        });
+
+        // --- Layer Reordering (Drag and Drop) ---
+        let draggedLayer = null;
+
+        layersList.addEventListener('dragstart', (e) => {
+            const target = e.target.closest('.layer-item');
+            if (target) {
+                draggedLayer = target;
+                e.dataTransfer.effectAllowed = 'move';
+                // Use a small timeout to avoid flickering when element is picked up
+                setTimeout(() => {
+                    target.style.opacity = '0.5';
+                }, 0);
+            }
+        });
+
+        layersList.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessary to allow drop
+            const target = e.target.closest('.layer-item');
+            if (target && target !== draggedLayer) {
+                const bounding = target.getBoundingClientRect();
+                const offset = bounding.y + (bounding.height / 2);
+                if (e.clientY < offset) {
+                    layersList.insertBefore(draggedLayer, target);
+                } else {
+                    layersList.insertBefore(draggedLayer, target.nextSibling);
+                }
+            }
+        });
+
+        layersList.addEventListener('dragend', () => {
+            if (draggedLayer) {
+                draggedLayer.style.opacity = '1';
+                draggedLayer = null;
+
+                // Get the current highest z-index from elements on the canvas
+                let maxZ = getNextHighestZIndex() - 1; 
+                // Ensure a reasonable base for reordering if canvas is empty or has low Z-indices
+                if (maxZ < 100) { 
+                    maxZ = 100;
+                }
+                
+                // Iterate through the layersList.children in their *new* DOM order (top to bottom of list)
+                // Assign decreasing Z-indices starting from maxZ
+                const layersInNewOrder = Array.from(layersList.children);
+                
+                layersInNewOrder.forEach((layerItem, index) => {
+                    if (layerItem.dataset.id) {
+                        const elementWrapper = allElements.get(layerItem.dataset.id);
+                        if (elementWrapper) {
+                            elementWrapper.style.zIndex = maxZ - index;
+                        }
+                    }
+                }
+                );
+
+                // Update the layers list display and re-select the element (if it was selected)
+                updateLayersList();
+                // ONLY bring to front if the "Bring to Front" button is clicked explicitly
+                // if (selectedElementWrapper) {
+                //     selectElement(selectedElementWrapper); 
+                // }
+            }
+        });
+
+        // Zoom event listener
+        zoomRange.addEventListener('input', () => {
+            currentZoom = parseFloat(zoomRange.value);
+            applyZoom();
+            // After zooming, re-select if an element is selected to update handle positions
+            if (selectedElementWrapper) {
+                // No need to re-select fully, just update handlers if needed (not directly affected by zoom)
+                // The element positions/sizes are handled by the transform on the canvas itself.
+                // However, the visual handles need to be updated as they are direct children.
+                // This is already handled by the general selectElement when an element is active.
+            }
+        });
+
+        // --- Drag and Drop File Upload Event Listeners ---
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Prevent default to allow drop
+            dropArea.classList.add('highlight'); // Add highlight style
+            e.dataTransfer.dropEffect = 'copy'; // Visual feedback for copying
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('highlight'); // Remove highlight style
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault(); // Prevent default file open behavior
+            dropArea.classList.remove('highlight'); // Remove highlight style
+
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // No need for explicit fixed width/height on editorCanvas now, flex-1 will handle its main dimensions
+            // applyZoom will handle the transform and centering of its content
+            editorCanvas.style.transformOrigin = 'center center'; // Set initial transform origin
+
+            // Initial setup
+            deselectAllElements();
+            updateLayersList();
+            updateFileCountDisplay(); // Initial call to display the file count
+            applyZoom(); // Apply initial zoom and center the view
+        });
+    </script>
+</body>
+</html>
