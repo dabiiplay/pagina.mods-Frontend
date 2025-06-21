@@ -1902,6 +1902,9 @@
                     updateLayersList();
                     updateFileCountDisplay();
                     
+                    // Store initial aspect ratio on the wrapper for resizing
+                    wrapperDiv.dataset.initialAspectRatio = aspectRatio;
+
                     // Send the initial add message with calculated dimensions
                     elementState = {
                         ...elementState,
@@ -1913,7 +1916,8 @@
                         zIndex: wrapperDiv.style.zIndex,
                         opacity: '1',
                         type: 'img',
-                        src: srcData
+                        src: srcData,
+                        initialAspectRatio: aspectRatio // Include aspect ratio in shared state
                     };
                     sendWebSocketMessage('elementAdd', { element: elementState });
                 };
@@ -2155,6 +2159,7 @@
                 if (contentElement.tagName === 'IMG') {
                     state.type = 'img';
                     state.src = contentElement.src;
+                    state.initialAspectRatio = element.dataset.initialAspectRatio; // Include aspect ratio in state
                 } else if (contentElement.classList.contains('text-content')) {
                     state.type = 'text';
                     state.textContent = contentElement.textContent;
@@ -2233,6 +2238,11 @@
                         clonedTextElement.contentEditable = true;
                         adjustTextElementWrapperSize(clonedWrapper);
                     }
+                }
+                
+                // Set initialAspectRatio for duplicated images
+                if (originalContentElement.tagName === 'IMG') {
+                    clonedWrapper.dataset.initialAspectRatio = selectedElementWrapper.dataset.initialAspectRatio;
                 }
 
                 mainCanvasWrapper.appendChild(clonedWrapper);
@@ -2606,26 +2616,32 @@
 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && (contentElement.tagName === 'IMG')) {
-                    const originalImageAspectRatio = contentElement.naturalWidth / contentElement.naturalHeight;
-                    let calculatedWidth = initialWidth + dx;
-                    let calculatedHeight = initialHeight + dy;
+                    // Use the initial aspect ratio stored when the image was first added
+                    const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
 
-                    // Maintain aspect ratio based on the largest change
-                    if (Math.abs(dx) > Math.abs(dy)) { // If dragging horizontally
-                        calculatedHeight = calculatedWidth / originalImageAspectRatio;
-                    } else { // If dragging vertically
-                        calculatedWidth = calculatedHeight * originalImageAspectRatio;
+                    let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
+                    let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
+
+                    // Determine which dimension changed more significantly and scale based on that to maintain aspect ratio
+                    if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
+                        newWidth = potentialNewWidth;
+                        newHeight = newWidth / originalImageAspectRatio;
+                    } else {
+                        newHeight = potentialNewHeight;
+                        newWidth = newHeight * originalImageAspectRatio;
                     }
 
-                    // Adjust position based on chosen dimension
-                    if (activeHandle.startsWith('top-')) {
-                        newTop = initialTop + (initialHeight - calculatedHeight);
+                    // Ensure minimum size
+                    newWidth = Math.max(20, newWidth);
+                    newHeight = Math.max(20, newHeight);
+
+                    // Adjust position based on the handle being dragged
+                    if (activeHandle.includes('left')) {
+                        newLeft = initialLeft + initialWidth - newWidth;
                     }
-                    if (activeHandle.endsWith('-left')) {
-                        newLeft = initialLeft + (initialWidth - calculatedWidth);
+                    if (activeHandle.includes('top')) {
+                        newTop = initialTop + initialHeight - newHeight;
                     }
-                    newWidth = calculatedWidth;
-                    newHeight = calculatedHeight;
 
                 } else if (contentElement && contentElement.classList.contains('text-content')) {
                     switch (activeHandle) {
@@ -2867,26 +2883,29 @@
 
                     const contentElement = selectedElementWrapper.querySelector('.element-content');
                     if (contentElement && (contentElement.tagName === 'IMG')) {
-                        const originalImageAspectRatio = contentElement.naturalWidth / contentElement.naturalHeight;
-                        let calculatedWidth = initialWidth + dx;
-                        let calculatedHeight = initialHeight + dy;
+                        const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
 
-                        // Maintain aspect ratio based on the largest change
-                        if (Math.abs(dx) > Math.abs(dy)) { // If dragging horizontally
-                            calculatedHeight = calculatedWidth / originalImageAspectRatio;
-                        } else { // If dragging vertically
-                            calculatedWidth = calculatedHeight * originalImageAspectRatio;
+                        let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
+                        let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
+
+                        if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
+                            newWidth = potentialNewWidth;
+                            newHeight = newWidth / originalImageAspectRatio;
+                        } else {
+                            newHeight = potentialNewHeight;
+                            newWidth = newHeight * originalImageAspectRatio;
                         }
 
-                        // Adjust position based on chosen dimension
-                        if (activeHandle.startsWith('top-')) {
-                            newTop = initialTop + (initialHeight - calculatedHeight);
+                        newWidth = Math.max(20, newWidth);
+                        newHeight = Math.max(20, newHeight);
+
+                        if (activeHandle.includes('left')) {
+                            newLeft = initialLeft + initialWidth - newWidth;
                         }
-                        if (activeHandle.endsWith('-left')) {
-                            newLeft = initialLeft + (initialWidth - calculatedWidth);
+                        if (activeHandle.includes('top')) {
+                            newTop = initialTop + initialHeight - newHeight;
                         }
-                        newWidth = calculatedWidth;
-                        newHeight = calculatedHeight;
+
                     } else if (contentElement && contentElement.classList.contains('text-content')) {
                         switch (activeHandle) {
                             case 'top-left':
