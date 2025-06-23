@@ -201,22 +201,6 @@
             width: 100%;
             height: 100%;
         }
-        /* Media query block for mobile adjustments - Reverted */
-        /* @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-            aside {
-                width: 100%;
-                height: auto;
-                max-height: 50vh;
-            }
-            main {
-                flex-grow: 1;
-                width: 100%;
-                margin: 0.5rem;
-            }
-        } */
         input[type="range"].w-full {
             -webkit-appearance: none;
             appearance: none;
@@ -260,31 +244,26 @@
             justify-content: center;
             margin: 1rem;
             overflow: hidden;
-            /* width: 100%; Reverted for specific sizes */
         }
         #mainCanvasWrapper {
             display: flex;
             position: relative;
-            width: 1496px; /* Reverted to fixed size */
-            height: 720px; /* Reverted to fixed size */
+            width: 1496px;
+            height: 720px;
             transform-origin: center center;
             flex-shrink: 0;
-            /* max-width: 1496px; Max width for larger screens - Reverted */
-            /* max-height: 720px; Max height for larger screens - Reverted */
-            /* aspect-ratio: 1496 / 720; Maintain aspect ratio - Reverted */
-            /* margin: auto; Center the canvas within editorCanvas - Reverted, uses margin: 1rem on editorCanvas */
         }
         #leftSidebar {
-            width: 200px; /* Reverted to fixed size */
-            height: 720px; /* Reverted to fixed size */
+            width: 200px;
+            height: 720px;
             background-color: rgba(16, 185, 129, 0.5);
             border: 2px dashed #4ade80;
             margin-right: 1rem;
             flex-shrink: 0;
         }
         #innerCanvas {
-            width: 1280px; /* Reverted to fixed size */
-            height: 720px; /* Reverted to fixed size */
+            width: 1280px;
+            height: 720px;
             background-color: transparent;
             border: 2px dashed white;
             flex-shrink: 0;
@@ -694,6 +673,9 @@
         let pendingUpdateAnimationFrame = null; // For WebSocket updates
         let pendingDOMUpdateAnimationFrame = null; // For direct DOM updates
 
+        // New throttling variables for WebSocket updates during continuous actions
+        let dragSendTimeout = null;
+        const DRAG_SEND_THROTTLE_MS = 80; // Send updates roughly every 60ms
 
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -743,19 +725,8 @@
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new (from another client), creating it.`);
                         if (message.element.type === 'audio') {
                             createAudioElementAndAddToPlaylist(message.element);
-                            // Do NOT select audio when added from another client automatically
-                            // document.querySelector('.tab-button[data-tab="audio"]').click();
-                            // const newAudioElement = allElements.get(message.element.id);
-                            // if (newAudioElement) {
-                            //     selectAudioElement(newAudioElement);
-                            // }
                         } else {
                             createElementFromData(message.element);
-                            // Do NOT select visual element when added from another client automatically
-                            // const newVisualElement = allElements.get(message.element.id);
-                            // if (newVisualElement) {
-                            //     selectElement(newVisualElement);
-                            // }
                         }
                     }
                     updateLayersList();
@@ -986,10 +957,6 @@
 
                 contentElement.onload = () => {
                     console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
-                    // Do NOT select the element when loaded from data (e.g., initial state from server)
-                    // if (selectedElementWrapper && selectedElementWrapper.id === wrapperDiv.id) {
-                    //      selectElement(wrapperDiv); 
-                    // }
                 };
                 if (contentElement.complete) {
                     contentElement.onload();
@@ -1102,11 +1069,6 @@
                     audioElement.pause();
                 }
             }
-
-            // Do NOT select the audio element automatically when creating/updating from data
-            // if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-            //     selectAudioElement(audioElement);
-            // }
         }
 
         function addAudioItemToPlaylistUI(audioElement) {
@@ -1191,51 +1153,46 @@
                     console.log(`[UPDATE] Setting currentTime for ${data.id} to ${data.currentTime}`);
                 }
 
-                if (data.isPlaying && element.paused && !isMutedGlobally) {
+                if (data.isPlaying && audioElement.paused && !isMutedGlobally) {
                     element.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
-                } else if (!data.isPlaying && !element.paused) {
+                } else if (!data.isPlaying && !audioElement.paused) {
                     element.pause();
                 }
             } else {
-                // Optimize DOM updates for visual elements using requestAnimationFrame
-                if (!pendingDOMUpdateAnimationFrame) {
-                    pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
-                        element.style.left = data.left;
-                        element.style.top = data.top;
-                        element.style.width = data.width;
-                        element.style.height = data.height;
-                        applyElementTransform(element, data.rotation || 0, data.scale || 1);
-                        element.style.zIndex = data.zIndex;
+                // Update DOM directly for visual smoothness from remote updates
+                element.style.left = data.left;
+                element.style.top = data.top;
+                element.style.width = data.width;
+                element.style.height = data.height;
+                applyElementTransform(element, data.rotation || 0, data.scale || 1);
+                element.style.zIndex = data.zIndex;
+                
+                contentElement = element.querySelector('.element-content');
+                if (contentElement) {
+                    contentElement.style.opacity = data.opacity;
+                    if (data.type === 'text') {
+                        contentElement.textContent = data.textContent;
+                        contentElement.style.color = data.color;
+                        contentElement.style.backgroundColor = data.backgroundColor;
+                        contentElement.style.fontSize = data.fontSize;
                         
-                        contentElement = element.querySelector('.element-content');
-                        if (contentElement) {
-                            contentElement.style.opacity = data.opacity;
-                            if (data.type === 'text') {
-                                contentElement.textContent = data.textContent;
-                                contentElement.style.color = data.color;
-                                contentElement.style.backgroundColor = data.backgroundColor;
-                                contentElement.style.fontSize = data.fontSize;
-                                
-                                if (data.isBold) contentElement.classList.add('font-bold');
-                                else contentElement.classList.remove('font-bold');
-                                
-                                if (data.isItalic) contentElement.classList.add('italic');
-                                else contentElement.classList.remove('italic');
+                        if (data.isBold) contentElement.classList.add('font-bold');
+                        else contentElement.classList.remove('font-bold');
+                        
+                        if (data.isItalic) contentElement.classList.add('italic');
+                        else contentElement.classList.remove('italic');
 
-                                if (data.hasTextOutline && parseFloat(data.outlineThickness) > 0) {
-                                    contentElement.style.webkitTextStrokeWidth = data.outlineThickness;
-                                    contentElement.style.webkitTextStrokeColor = data.outlineColor;
-                                    contentElement.style.textShadow = generateTextShadowForOutline(parseFloat(data.outlineThickness), data.outlineColor);
-                                } else {
-                                    contentElement.style.webkitTextStrokeWidth = '0';
-                                    contentElement.style.webkitTextStrokeColor = 'transparent';
-                                    contentElement.style.textShadow = 'none';
-                                }
-                                adjustTextElementWrapperSize(element);
-                            }
+                        if (data.hasTextOutline && parseFloat(data.outlineThickness) > 0) {
+                            contentElement.style.webkitTextStrokeWidth = data.outlineThickness;
+                            contentElement.style.webkitTextStrokeColor = data.outlineColor;
+                            contentElement.style.textShadow = generateTextShadowForOutline(parseFloat(data.outlineThickness), data.outlineColor);
+                        } else {
+                            contentElement.style.webkitTextStrokeWidth = '0';
+                            contentElement.style.webkitTextStrokeColor = 'transparent';
+                            contentElement.style.textShadow = 'none';
                         }
-                        pendingDOMUpdateAnimationFrame = null;
-                    });
+                        adjustTextElementWrapperSize(element);
+                    }
                 }
             }
 
@@ -1530,7 +1487,6 @@
                     adjustTextElementWrapperSize(selectedElementWrapper);
                 } else { // If it's not a text element (e.g., an image)
                     // Text input remains enabled, but styling controls are disabled.
-                    // textInput.disabled = false; // Already handled by deselectAllElements
                     textColorInput.disabled = true;
                     boldTextBtn.disabled = true;
                     italicTextBtn.disabled = true;
@@ -1579,7 +1535,6 @@
             resetSizeBtn.disabled = true; 
 
             // Disable text-specific controls (textInput remains enabled)
-            // textInput.disabled = false; // Already handled by deselectAllElements
             textColorInput.disabled = true;
             boldTextBtn.disabled = true;
             italicTextBtn.disabled = true;
@@ -2006,11 +1961,12 @@
                     adjustTextElementWrapperSize(selectedElementWrapper);
                     updateLayersList();
 
-                    if (!pendingUpdateAnimationFrame) {
-                        pendingUpdateAnimationFrame = requestAnimationFrame(() => {
+                    // Throttle WebSocket updates for text input as well
+                    if (!dragSendTimeout) { // Re-using dragSendTimeout for consistency, could be a separate one
+                        dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                            pendingUpdateAnimationFrame = null;
-                        });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
                     }
                 }
             }
@@ -2049,8 +2005,9 @@
 
                 const state = {
                     id: element.id,
-                    left: element.style.left,
-                    top: element.style.top,
+                    // Get computed styles for accurate current position
+                    left: element.style.left, // Use computed values from DOM directly
+                    top: element.style.top,   // Use computed values from DOM directly
                     width: element.style.width,
                     height: element.style.height,
                     zIndex: element.style.zIndex,
@@ -2105,11 +2062,12 @@
                 if (contentElement) {
                     contentElement.style.opacity = opacityRange.value;
                     opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
-                    if (!pendingUpdateAnimationFrame) {
-                        pendingUpdateAnimationFrame = requestAnimationFrame(() => {
+                    // Throttling for range inputs as well, they generate many events
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                            pendingUpdateAnimationFrame = null;
-                        });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
                     }
                 }
             }
@@ -2121,11 +2079,12 @@
                 const newRotation = parseFloat(rotationRange.value);
                 applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                 rotationValue.textContent = `${Math.round(newRotation)}°`;
-                 if (!pendingUpdateAnimationFrame) {
-                    pendingUpdateAnimationFrame = requestAnimationFrame(() => {
+                // Throttling for range inputs
+                if (!dragSendTimeout) {
+                    dragSendTimeout = setTimeout(() => {
                         sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                        pendingUpdateAnimationFrame = null;
-                    });
+                        dragSendTimeout = null;
+                    }, DRAG_SEND_THROTTLE_MS);
                 }
             }
         });
@@ -2136,14 +2095,15 @@
                 const newScale = parseFloat(sizeRange.value);
                 applyElementTransform(selectedElementWrapper, currentRotation, newScale);
                 sizeValue.textContent = `${Math.round(newScale * 100)}%`;
-                if (!pendingUpdateAnimationFrame) {
-                    pendingUpdateAnimationFrame = requestAnimationFrame(() => {
+                // Throttling for range inputs
+                if (!dragSendTimeout) {
+                    dragSendTimeout = setTimeout(() => {
                         sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                        pendingUpdateAnimationFrame = null;
-                        });
-                    }
+                        dragSendTimeout = null;
+                    }, DRAG_SEND_THROTTLE_MS);
                 }
-            });
+            }
+        });
 
         duplicateElementBtn.addEventListener('click', () => {
             console.log("[DUPLICATE] Duplicate button clicked.");
@@ -2220,7 +2180,13 @@
                         contentElement.style.textShadow = generateTextShadowForOutline(outlineThicknessRange.value, textOutlineColorInput.value);
                     }
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                    // Throttling for color input
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
                 }
             }
         });
@@ -2230,7 +2196,13 @@
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.backgroundColor = textBgColorInput.value;
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                    // Throttling for color input
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
                 }
             }
         });
@@ -2330,7 +2302,13 @@
                     contentElement.style.webkitTextStrokeColor = textOutlineColorInput.value;
                     contentElement.style.textShadow = generateTextShadowForOutline(outlineThicknessRange.value, textOutlineColorInput.value);
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                    // Throttling for color input
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
                 }
             }
         });
@@ -2346,7 +2324,13 @@
                     contentElement.style.textShadow = generateTextShadowForOutline(thickness, color);
                     outlineThicknessValue.textContent = `${thickness}px`;
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                    // Throttling for range input
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
                 }
             } else {
                 outlineThicknessValue.textContent = `${outlineThicknessRange.value}px`;
@@ -2359,7 +2343,13 @@
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.fontSize = `${fontSizeRange.value}px`;
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                    // Throttling for range input
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
                 }
             }
             fontSizeValue.textContent = `${fontSizeRange.value}px`;
@@ -2510,7 +2500,6 @@
             }
         });
 
-        let dragUpdateQueued = false;
         document.addEventListener('mousemove', (e) => {
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentMouseXOnUnscaledWrapper = (e.clientX - wrapperRect.left) / currentZoom;
@@ -2519,18 +2508,14 @@
             if ((isDragging || isResizing || isRotating) && selectedElementWrapper) {
                 e.preventDefault();
 
+                // Step 1: Smooth local DOM update using requestAnimationFrame
                 if (!pendingDOMUpdateAnimationFrame) {
                     pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
                         if (isDragging) {
                             const dx = currentMouseXOnUnscaledWrapper - initialMouseX;
                             const dy = currentMouseYOnUnscaledWrapper - initialMouseY;
-
-                            let newLeft = initialLeft + dx;
-                            let newTop = initialTop + dy;
-
-                            selectedElementWrapper.style.left = `${newLeft}px`;
-                            selectedElementWrapper.style.top = `${newTop}px`;
-
+                            selectedElementWrapper.style.left = `${initialLeft + dx}px`;
+                            selectedElementWrapper.style.top = `${initialTop + dy}px`;
                         } else if (isResizing) {
                             const dx = currentMouseXOnUnscaledWrapper - initialMouseX;
                             const dy = currentMouseYOnUnscaledWrapper - initialMouseY;
@@ -2650,12 +2635,14 @@
                             selectedElementWrapper.style.left = `${newLeft}px`;
                             selectedElementWrapper.style.top = `${newTop}px`;
 
+                            // Update initial values for continuous resizing
                             initialMouseX = currentMouseXOnUnscaledWrapper;
                             initialMouseY = currentMouseYOnUnscaledWrapper;
                             initialWidth = newWidth;
                             initialHeight = newHeight;
                             initialLeft = newLeft;
                             initialTop = newTop;
+
                         } else if (isRotating) {
                             const rect = selectedElementWrapper.getBoundingClientRect();
                             const centerX = rect.left + rect.width / 2;
@@ -2670,35 +2657,40 @@
                             applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                             rotationRange.value = newRotation;
                             rotationValue.textContent = `${Math.round(newRotation)}°`;
+
+                            // Update initial values for continuous rotation
+                            initialRotationAngle = currentAngle;
+                            initialElementRotation = newRotation;
                         }
                         pendingDOMUpdateAnimationFrame = null; // Reset for next frame
                     });
                 }
 
-                // Send WebSocket update at a lower frequency to optimize network usage
-                if (!dragUpdateQueued) {
-                    dragUpdateQueued = true;
-                    requestAnimationFrame(() => {
+                // Step 2: Throttled WebSocket update for network efficiency
+                if (!dragSendTimeout) {
+                    dragSendTimeout = setTimeout(() => {
                         if (selectedElementWrapper) {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                         }
-                        dragUpdateQueued = false;
-                    });
+                        dragSendTimeout = null;
+                    }, DRAG_SEND_THROTTLE_MS);
                 }
             }
         });
 
         document.addEventListener('mouseup', () => {
             if (isDragging || isResizing || isRotating) {
-                // Ensure final state is sent and applied after drag/resize/rotate ends
+                // Clear any pending DOM update frame
                 if (pendingDOMUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
                 }
-                if (pendingUpdateAnimationFrame) {
-                    cancelAnimationFrame(pendingUpdateAnimationFrame);
-                    pendingUpdateAnimationFrame = null;
+                // Clear any pending WebSocket send timeout
+                if (dragSendTimeout) {
+                    clearTimeout(dragSendTimeout);
+                    dragSendTimeout = null;
                 }
+                // Send final state to ensure consistency
                 if (selectedElementWrapper) {
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
@@ -2707,7 +2699,6 @@
             isResizing = false;
             isRotating = false;
             activeHandle = '';
-            dragUpdateQueued = false; // Reset the flag
         });
 
         document.addEventListener('touchstart', (e) => {
@@ -2764,7 +2755,6 @@
             }
         });
 
-        let touchDragUpdateQueued = false;
         document.addEventListener('touchmove', (e) => {
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentTouchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
@@ -2774,17 +2764,15 @@
                 if ((isDragging || isResizing || isRotating) && selectedElementWrapper) {
                     e.preventDefault();
 
+                    // Step 1: Smooth local DOM update using requestAnimationFrame
                     if (!pendingDOMUpdateAnimationFrame) {
                         pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
                             if (isDragging) {
                                 const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
                                 const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
 
-                                let newLeft = initialLeft + dx;
-                                let newTop = initialTop + dy;
-
-                                selectedElementWrapper.style.left = `${newLeft}px`;
-                                selectedElementWrapper.style.top = `${newTop}px`;
+                                selectedElementWrapper.style.left = `${initialLeft + dx}px`;
+                                selectedElementWrapper.style.top = `${initialTop + dy}px`;
                             } else if (isResizing) {
                                 const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
                                 const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
@@ -2904,12 +2892,14 @@
                                 selectedElementWrapper.style.left = `${newLeft}px`;
                                 selectedElementWrapper.style.top = `${newTop}px`;
 
+                                // Update initial values for continuous resizing
                                 initialMouseX = currentTouchXOnUnscaledWrapper;
                                 initialMouseY = currentTouchYOnUnscaledWrapper;
                                 initialWidth = newWidth;
                                 initialHeight = newHeight;
                                 initialLeft = newLeft;
                                 initialTop = newTop;
+
                             } else if (isRotating) {
                                 const rect = selectedElementWrapper.getBoundingClientRect();
                                 const centerX = rect.left + rect.width / 2;
@@ -2924,20 +2914,23 @@
                                 applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                                 rotationRange.value = newRotation;
                                 rotationValue.textContent = `${Math.round(newRotation)}°`;
+
+                                // Update initial values for continuous rotation
+                                initialRotationAngle = currentAngle;
+                                initialElementRotation = newRotation;
                             }
                             pendingDOMUpdateAnimationFrame = null; // Reset for next frame
                         });
                     }
 
-                    // Send WebSocket update at a lower frequency for touch events
-                    if (!touchDragUpdateQueued) {
-                        touchDragUpdateQueued = true;
-                        requestAnimationFrame(() => {
+                    // Step 2: Throttled WebSocket update for network efficiency
+                    if (!dragSendTimeout) { // Using the same timeout for touch events
+                        dragSendTimeout = setTimeout(() => {
                             if (selectedElementWrapper) {
                                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                             }
-                            touchDragUpdateQueued = false;
-                        });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
                     }
                 }
             }
@@ -2945,15 +2938,17 @@
 
         document.addEventListener('touchend', () => {
             if (isDragging || isResizing || isRotating) {
-                // Ensure final state is sent and applied after drag/resize/rotate ends
+                // Clear any pending DOM update frame
                 if (pendingDOMUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
                 }
-                if (pendingUpdateAnimationFrame) {
-                    cancelAnimationFrame(pendingUpdateAnimationFrame);
-                    pendingUpdateAnimationFrame = null;
+                // Clear any pending WebSocket send timeout
+                if (dragSendTimeout) {
+                    clearTimeout(dragSendTimeout);
+                    dragSendTimeout = null;
                 }
+                // Send final state to ensure consistency
                 if (selectedElementWrapper) {
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
@@ -2962,7 +2957,6 @@
             isResizing = false;
             isRotating = false;
             activeHandle = '';
-            touchDragUpdateQueued = false; // Reset the flag
         });
 
         document.querySelectorAll('.tab-button').forEach(button => {
@@ -3098,15 +3092,11 @@
         // Event listener for the new "OK" button
         document.getElementById('confirmOkBtn').addEventListener('click', () => {
             confirmationModal.classList.remove('active');
-            // For simple "OK" modals, no callback is usually needed as the action is just dismissal.
-            // If a specific action was still desired, it would be passed as a callback for showConfirmationModal
-            // and executed here. But for the MP3 duration message, we just close it.
         });
 
         // Simplified showConfirmationModal function
-        function showConfirmationModal(message, callback) { // callback is kept for compatibility but not used for MP3 warning
+        function showConfirmationModal(message, callback) { 
             document.getElementById('confirmationMessage').textContent = message;
-            // confirmationModalCallback = callback; // No longer storing callback for simple OK modal
             confirmationModal.classList.add('active');
         }
 
