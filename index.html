@@ -668,14 +668,26 @@
         let isMutedGlobally = true;
         const allElements = new Map();
         const WS_URL = 'wss://pagina-mods-websocket-server.onrender.com';
-        let ws;
-        let reconnectInterval;
-        let pendingUpdateAnimationFrame = null; // For WebSocket updates
-        let pendingDOMUpdateAnimationFrame = null; // For direct DOM updates
+        let ws = null; // Initialize to null
+        let reconnectInterval = null; // Initialize to null
 
-        // New throttling variables for WebSocket updates during continuous actions
-        let dragSendTimeout = null;
-        const DRAG_SEND_THROTTLE_MS = 80; // Send updates roughly every 60ms
+        // New variables for user identification, similar to indexx.html
+        let myUserId = 'user-' + Math.random().toString(36).substr(2, 9);
+        let myUserColor = getRandomColor(); // Function to generate a random color
+
+        // Function to generate a random hexadecimal color
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        const DRAG_SEND_THROTTLE_MS = 100; // Throttle constant for sending updates
+        let dragSendTimeout = null; // Throttle timeout variable
+        let pendingDOMUpdateAnimationFrame = null; // Variable to control requestAnimationFrame for updates
 
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -683,7 +695,18 @@
                 return;
             }
             updateWsStatus('connecting');
-            ws = new WebSocket(WS_URL);
+
+            try {
+                ws = new WebSocket(WS_URL);
+            } catch (e) {
+                console.error('Failed to create WebSocket:', e);
+                // Immediately attempt reconnect if creation fails synchronously
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(connectWebSocket, 5000);
+                }
+                return; // Stop here if creation failed
+            }
+
 
             ws.onopen = () => {
                 console.log('Connected to WebSocket server');
@@ -692,6 +715,8 @@
                     clearInterval(reconnectInterval);
                     reconnectInterval = null;
                 }
+                // IMPORTANT: Send user connection information on open, as in indexx.html
+                sendWebSocketMessage('userConnect', { userId: myUserId, userName: `Usuario ${myUserId.slice(-4)}`, userColor: myUserColor });
             };
 
             ws.onmessage = (event) => {
@@ -749,23 +774,32 @@
                         }
                     });
                     updateLayersList();
-                } 
+                }
                 else if (message.type === 'ping') {
                     // console.log("Received ping, sending pong.");
                 }
+                // Removed cursorMove, userConnect, userDisconnect message handling as they are not part of current features.
             };
 
-            ws.onclose = () => {
-                console.log('Disconnected from WebSocket server. Attempting to reconnect...');
+            ws.onclose = (event) => {
+                console.log('Disconnected from WebSocket server. Code:', event.code, 'Reason:', event.reason);
+                ws = null; // Clear the WebSocket instance
                 updateWsStatus('disconnected');
                 if (!reconnectInterval) {
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
+                // Inform the server about disconnection (if it's not a planned closure)
+                if (myUserId) {
+                    sendWebSocketMessage('userDisconnect', { userId: myUserId });
+                }
             };
 
             ws.onerror = (err) => {
-                console.error('WebSocket error:', err);
-                ws.close();
+                console.error('WebSocket error occurred:', err);
+                // The 'error' event usually precedes 'close',
+                // so the onclose handler will take care of reconnecting.
+                // No need to call ws.close() here again, as it might already be closing
+                // or onclose will be triggered anyway.
             };
         }
 
@@ -932,8 +966,8 @@
 
             wrapperDiv.style.left = data.left;
             wrapperDiv.style.top = data.top;
-            wrapperDiv.style.zIndex = data.zIndex;
             applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
+            wrapperDiv.style.zIndex = data.zIndex;
 
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
@@ -1063,6 +1097,7 @@
                     console.log(`[UPDATE] Setting currentTime for ${data.id} to ${data.currentTime}`);
                 }
 
+                // Make sure to use 'element' reference correctly here
                 if (data.isPlaying && audioElement.paused && !isMutedGlobally) {
                     audioElement.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
                 } else if (!data.isPlaying && !audioElement.paused) {
@@ -1143,7 +1178,7 @@
                 element.src = data.src;
                 element.volume = data.volume;
                 element.dataset.lastVolume = data.lastVolume;
-                element.muted = data.muted || isMutedGlobally;
+                element.muted = data.muted; // Use data.muted directly as it comes from server
                 if (data.publicId) {
                     element.dataset.publicId = data.publicId;
                 }
@@ -1153,9 +1188,9 @@
                     console.log(`[UPDATE] Setting currentTime for ${data.id} to ${data.currentTime}`);
                 }
 
-                if (data.isPlaying && audioElement.paused && !isMutedGlobally) {
+                if (data.isPlaying && element.paused && !element.muted) { // Check !element.muted here
                     element.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
-                } else if (!data.isPlaying && !audioElement.paused) {
+                } else if (!data.isPlaying && !element.paused) {
                     element.pause();
                 }
             } else {
@@ -1812,7 +1847,8 @@
                             currentTime: audioElement.currentTime,
                             paused: audioElement.paused,
                             isPlaying: !audioElement.paused,
-                            lastVolume: audioElement.dataset.lastVolume
+                            lastVolume: audioElement.dataset.lastVolume,
+                            muted: audioElement.muted // Add muted state
                         };
                         sendWebSocketMessage('elementUpdate', { element: updatedElementState });
                     }, { once: true });
@@ -1833,6 +1869,7 @@
                     isPlaying: !audioElement.paused,
                     duration: audioElement.duration || audioDuration,
                     lastVolume: audioElement.dataset.lastVolume,
+                    muted: audioElement.muted, // Add muted state
                     left: '0px', top: '0px', width: '0px', height: '0px',
                     rotation: 0, scale: 1, zIndex: 0, opacity: 1
                 };
@@ -1992,6 +2029,7 @@
                     lastVolume: element.dataset.lastVolume,
                     originalName: element.dataset.originalName,
                     publicId: element.dataset.publicId,
+                    muted: element.muted, // Add muted state here
                     left: '0px', top: '0px', width: '0px', height: '0px',
                     rotation: 0, scale: 1, zIndex: 0, opacity: 1
                 };
@@ -2405,7 +2443,12 @@
                     selectedAudioElement.pause();
                 }
                 updatePlayPauseButton(selectedAudioElement.paused);
-                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
+                
+                // Add a small delay before sending the update for audio playback
+                // This gives the browser a moment to process the play/pause request locally.
+                setTimeout(() => {
+                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
+                }, 50); // 50ms delay
             }
         });
 
@@ -2417,7 +2460,7 @@
                 if (parseFloat(volumeRange.value) === 0) {
                     selectedAudioElement.muted = true;
                 } else {
-                    selectedAudioElement.muted = isMutedGlobally;
+                    selectedAudioElement.muted = isMutedGlobally; // Keep global mute state respected
                 }
                 volumeValueDisplay.textContent = `${Math.round(volumeRange.value * 100)}%`;
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
@@ -2605,6 +2648,7 @@
 
                                 tempDiv.textContent = textElement.textContent;
                                 document.body.appendChild(tempDiv);
+
                                 const rawTextRect = tempDiv.getBoundingClientRect();
                                 const minContentWidth = rawTextRect.width;
                                 const minContentHeight = rawTextRect.height;
