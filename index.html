@@ -412,6 +412,15 @@
         .modal-button.sound:hover {
             background-color: #059669;
         }
+        /* New style for single OK button */
+        .modal-button.ok {
+            background-color: #8B5CF6; /* Purple color */
+            color: #FFFFFF;
+            border: 1px solid #7C3AED;
+        }
+        .modal-button.ok:hover {
+            background-color: #7C3AED;
+        }
     </style>
 </head>
 <body class="h-screen flex text-gray-800">
@@ -656,7 +665,6 @@
         const zoomRange = document.getElementById('newZoomRange');
         const zoomValue = document.getElementById('zoomValue');
         const dropArea = document.getElementById('dropArea');
-        // const loadingSpinner = document.getElementById('loadingSpinner'); // No longer needed
         const wsStatusElement = document.getElementById('wsStatus');
         const mutePreferenceModal = document.getElementById('mutePreferenceModal');
         const modalMuteBtn = document.getElementById('modalMuteBtn');
@@ -678,7 +686,6 @@
         let ws;
         let reconnectInterval;
         let pendingUpdateAnimationFrame = null;
-        // let lastAddedElementId = null; // No longer needed for spinner control
 
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -721,28 +728,23 @@
                 } else if (message.type === 'elementAdd') {
                     console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}`);
 
-                    // Since we create elements locally first, we just need to update if it exists,
-                    // or create if it came from another client.
                     if (allElements.has(message.element.id)) {
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} already exists locally, updating.`);
-                        // This update is crucial to get the Cloudinary URL and publicId from the server
-                        // if the element was initially added with a Base64 URL.
                         updateElementFromData(message.element);
                     } else {
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new (from another client), creating it.`);
                         if (message.element.type === 'audio') {
                             createAudioElementAndAddToPlaylist(message.element);
-                            // Force switch to audio tab and select the new audio
-                            document.querySelector('.tab-button[data-tab="audio"]').click(); // Simulate click to switch tab
+                            document.querySelector('.tab-button[data-tab="audio"]').click();
                             const newAudioElement = allElements.get(message.element.id);
                             if (newAudioElement) {
-                                selectAudioElement(newAudioElement); // Select the new audio in the list
+                                selectAudioElement(newAudioElement);
                             }
-                        } else { // It's a visual element (img or text)
+                        } else {
                             createElementFromData(message.element);
                             const newVisualElement = allElements.get(message.element.id);
-                            if (newVisualElement) { // Ensure element exists after creation
-                                selectElement(newVisualElement); // Select the new visual element (for other clients)
+                            if (newVisualElement) {
+                                selectElement(newVisualElement);
                             }
                         }
                     }
@@ -768,7 +770,7 @@
                     updateLayersList();
                 } 
                 else if (message.type === 'ping') {
-                    // console.log("Received ping, sending pong."); // Optional: log pings
+                    // console.log("Received ping, sending pong.");
                 }
             };
 
@@ -926,27 +928,20 @@
             element.style.transform = `rotate(${rotation}deg) scale(${scale})`;
         }
 
-        // Renamed from createAndAddElement for consistency as it's now called for elements from other clients
         function createElementFromData(data) {
-            // If the element already exists (e.g., this client just created it locally), just update its data
             if (allElements.has(data.id)) {
                 const existingElement = allElements.get(data.id);
                 if (existingElement.classList && existingElement.classList.contains('element-wrapper')) {
-                    // It's a visual element that was already created locally, so update.
                     updateElementFromData(data);
                     return;
                 }
-                // If it's an audio, it would have been created by createAudioElementAndAddToPlaylist
-                // and its properties will be updated by updateElementFromData when it arrives.
-                // We don't want to recreate the audio element here.
             }
 
-            if (data.type === 'audio') { // If it's an audio, delegate to its specific creation/update function
+            if (data.type === 'audio') {
                 createAudioElementAndAddToPlaylist(data);
                 return;
             }
 
-            // For visual elements (img, text)
             const wrapperDiv = document.createElement('div');
             wrapperDiv.id = data.id;
             wrapperDiv.classList.add('element-wrapper');
@@ -957,23 +952,22 @@
             wrapperDiv.style.left = data.left;
             wrapperDiv.style.top = data.top;
             wrapperDiv.style.zIndex = data.zIndex;
-            // Apply both rotation and scale from data
             applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
 
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
             }
-            if (data.initialAspectRatio) { // Guarda el aspect ratio para redimensionar
+            if (data.initialAspectRatio) {
                 wrapperDiv.dataset.initialAspectRatio = data.initialAspectRatio;
             }
-            if (data.publicId) { // Guarda el publicId para futuras referencias
+            if (data.publicId) {
                 wrapperDiv.dataset.publicId = data.publicId;
             }
 
             let contentElement;
             if (data.type === 'img') {
                 contentElement = document.createElement('img');
-                contentElement.src = data.src; // Ahora src es la URL de Cloudinary
+                contentElement.src = data.src;
                 contentElement.alt = data.originalName || 'Image';
                 contentElement.classList.add('element-content');
                 
@@ -982,12 +976,10 @@
 
                 contentElement.onload = () => {
                     console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
-                    // If this image is currently selected, refresh its properties in the sidebar.
                     if (selectedElementWrapper && selectedElementWrapper.id === wrapperDiv.id) {
                          selectElement(wrapperDiv); 
                     }
                 };
-                // Handle cases where the image might already be in browser cache
                 if (contentElement.complete) {
                     contentElement.onload();
                 }
@@ -1041,14 +1033,14 @@
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} not found, creating new.`);
                 audioElement = document.createElement('audio');
                 audioElement.id = data.id;
-                audioElement.src = data.src; // Ahora src es la URL de Cloudinary
+                audioElement.src = data.src;
                 audioElement.volume = data.volume || 0.5;
                 audioElement.currentTime = data.currentTime || 0;
                 audioElement.dataset.lastVolume = data.lastVolume || 0.5;
                 audioElement.muted = data.muted || isMutedGlobally;
                 audioElement.dataset.originalName = data.originalName || `Audio ${data.id.substring(data.id.length - 4)}`;
                 audioElement.dataset.type = 'audio';
-                if (data.publicId) { // Guarda el publicId
+                if (data.publicId) {
                     audioElement.dataset.publicId = data.publicId;
                 }
 
@@ -1132,7 +1124,6 @@
 
                 const deleteAudioBtn = document.createElement('button');
                 deleteAudioBtn.classList.add('text-white', 'p-1', 'rounded-full', 'bg-red-600', 'hover:bg-red-700', 'transition-colors');
-                // Icono de "X" simple
                 deleteAudioBtn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
                         <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
@@ -1161,7 +1152,6 @@
         function updateElementFromData(data) {
             console.log(`[UPDATE] Received update for element ID: ${data.id}, type: ${data.type}`);
             const element = allElements.get(data.id);
-            // Declare contentElement here
             let contentElement = null; 
 
             if (!element) {
@@ -1180,7 +1170,7 @@
                 element.volume = data.volume;
                 element.dataset.lastVolume = data.lastVolume;
                 element.muted = data.muted || isMutedGlobally;
-                if (data.publicId) { // Actualiza el publicId si viene en la data
+                if (data.publicId) {
                     element.dataset.publicId = data.publicId;
                 }
 
@@ -1190,21 +1180,18 @@
                 }
 
                 if (data.isPlaying && element.paused && !isMutedGlobally) {
-                    console.log(`[UPDATE] Playing audio ${data.id}`);
                     element.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
                 } else if (!data.isPlaying && !element.paused) {
                     element.pause();
                 }
-            } else { // Visual element update
+            } else {
                 element.style.left = data.left;
                 element.style.top = data.top;
                 element.style.width = data.width;
                 element.style.height = data.height;
-                // Apply both rotation and scale from data
                 applyElementTransform(element, data.rotation || 0, data.scale || 1);
                 element.style.zIndex = data.zIndex;
                 
-                // Assign contentElement only for visual elements
                 contentElement = element.querySelector('.element-content');
                 if (contentElement) {
                     contentElement.style.opacity = data.opacity;
@@ -1229,7 +1216,7 @@
                             contentElement.style.webkitTextStrokeColor = 'transparent';
                             contentElement.style.textShadow = 'none';
                         }
-                        adjustTextElementWrapperSize(element); // Re-adjust text element size on update
+                        adjustTextElementWrapperSize(element);
                     }
                 }
             }
@@ -1242,7 +1229,6 @@
                 updateTimelineDisplay(element);
                 currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
-                // Ensure contentElement is defined before accessing its properties
                 if (contentElement) { 
                     console.log(`[UPDATE] Updating UI for selected visual element ${data.id}`);
                     opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
@@ -1353,19 +1339,19 @@
             opacityValue.textContent = '100%';
             rotationRange.value = 0;
             rotationValue.textContent = '0°';
-            sizeRange.value = 1; // Restablecer tamaño
-            sizeValue.textContent = '100%'; // Restablecer tamaño
+            sizeRange.value = 1;
+            sizeValue.textContent = '100%';
             opacityRange.disabled = true;
             rotationRange.disabled = true;
-            sizeRange.disabled = true; // Deshabilitar tamaño
+            sizeRange.disabled = true;
             duplicateElementBtn.disabled = true;
             deleteElementBtn.disabled = true;
             resetOpacityBtn.disabled = true;
             resetRotationBtn.disabled = true;
-            resetSizeBtn.disabled = true; // Deshabilitar reset de tamaño
+            resetSizeBtn.disabled = true;
             bringToFrontBtn.disabled = true;
 
-            textInput.disabled = false; // Enable text input for new text
+            // Keep textInput enabled, only clear its content and reset styles
             textInput.value = ''; // Clear text input
             textColorInput.value = '#FFFFFF';
             textBgColorInput.value = '#000000';
@@ -1378,7 +1364,9 @@
             fontSizeValue.textContent = '24px';
             boldTextBtn.classList.remove('active-style');
             italicTextBtn.classList.remove('active-style');
-            textColorInput.disabled = false; // Enable text controls for new text input
+            
+            // Text controls remain enabled so user can type before adding
+            textColorInput.disabled = false;
             boldTextBtn.disabled = false;
             italicTextBtn.disabled = false;
             toggleTextBg.disabled = false;
@@ -1417,7 +1405,7 @@
 
         function selectElement(element) {
             console.log(`[SELECT] Attempting to select element ID: ${element.id}, type: ${element.tagName}`);
-            deselectAllElements(); // Deselect everything first
+            deselectAllElements();
 
             if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[SELECT] Selecting VISUAL element: ${element.id}`);
@@ -1432,8 +1420,8 @@
 
                 selectedElementWrapper.querySelector('.rotation-handle').style.display = 'block';
                 rotationRange.disabled = false;
-                sizeRange.disabled = false; // Habilitar tamaño
-                resetSizeBtn.disabled = false; // Habilitar reset de tamaño
+                sizeRange.disabled = false;
+                resetSizeBtn.disabled = false;
 
                 if (!contentElement.classList.contains('text-content')) {
                     selectedElementWrapper.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'block');
@@ -1451,7 +1439,7 @@
                 opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                 
-                const elementState = getElementState(selectedElementWrapper); // Get current rotation and scale
+                const elementState = getElementState(selectedElementWrapper);
                 rotationRange.value = elementState.rotation;
                 rotationValue.textContent = `${Math.round(elementState.rotation)}°`;
                 sizeRange.value = elementState.scale;
@@ -1459,7 +1447,7 @@
 
 
                 if (contentElement.classList.contains('text-content')) {
-                    textInput.disabled = false;
+                    textInput.disabled = false; // Ensure textInput is enabled when a text element is selected
                     textInput.value = contentElement.textContent;
                     textColorInput.disabled = false;
                     boldTextBtn.disabled = false;
@@ -1523,8 +1511,8 @@
                     }
                     adjustTextElementWrapperSize(selectedElementWrapper);
                 } else { // If it's not a text element (e.g., an image)
-                    // Disable text-specific controls
-                    textInput.disabled = true;
+                    // Text input remains enabled, but styling controls are disabled.
+                    // textInput.disabled = false; // Already handled by deselectAllElements
                     textColorInput.disabled = true;
                     boldTextBtn.disabled = true;
                     italicTextBtn.disabled = true;
@@ -1542,7 +1530,7 @@
                     outlineThicknessLabel.classList.remove('text-gray-300');
                 }
 
-                deselectAudioControls(); // Ensure audio controls are deselected
+                deselectAudioControls();
 
                 const layerItem = document.querySelector(`.layer-item[data-id="${element.id}"]`);
                 if (layerItem) {
@@ -1553,7 +1541,7 @@
 
         function selectAudioElement(audioElement) {
             console.log(`[SELECT] Selecting AUDIO element: ${audioElement.id}`);
-            deselectAllElements(); // Deselect all visual elements first
+            deselectAllElements(); // Deselect visual elements, but textInput will remain enabled
 
             selectedAudioElement = audioElement;
             document.querySelectorAll('.audio-list-item').forEach(item => item.classList.remove('selected'));
@@ -1572,8 +1560,8 @@
             resetRotationBtn.disabled = true;
             resetSizeBtn.disabled = true; 
 
-            // Disable text-specific controls
-            textInput.disabled = true;
+            // Disable text-specific controls (textInput remains enabled)
+            // textInput.disabled = false; // Already handled by deselectAllElements
             textColorInput.disabled = true;
             boldTextBtn.disabled = true;
             italicTextBtn.disabled = true;
@@ -1596,7 +1584,7 @@
             volumeRange.disabled = false;
             timelineRange.disabled = false;
 
-            audioElement.muted = isMutedGlobally; // Apply global mute state to selected audio
+            audioElement.muted = isMutedGlobally;
             volumeRange.value = audioElement.volume;
             volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
             updatePlayPauseButton(audioElement.paused);
@@ -1682,7 +1670,6 @@
                 return;
             }
 
-            // Ensure consistent order when updating display (e.g., by original name or ID)
             audioElements.sort((a, b) => a.dataset.originalName.localeCompare(b.dataset.originalName)).forEach(audioElement => {
                 addAudioItemToPlaylistUI(audioElement);
             });
@@ -1727,33 +1714,28 @@
                         tempAudio.src = e.target.result;
                         tempAudio.addEventListener('loadedmetadata', () => {
                             console.log(`[FILE_HANDLER] Audio metadata loaded for ${file.name}. Duration: ${tempAudio.duration}`);
-                            if (tempAudio.duration > 480) { // Max 8 minutes (480 seconds)
-                                console.warn(`Audio file "${file.name}" exceeds 8-minute limit (${formatTime(tempAudio.duration)}). Not added.`);
-                                // loadingSpinner.classList.add('hidden'); // Spinner removed
+                            const maxAudioDurationSeconds = 480; // 8 minutes
+                            if (tempAudio.duration > maxAudioDurationSeconds) {
+                                // No callback needed for showConfirmationModal
+                                showConfirmationModal(`Este MP3 dura más de 8 minutos (${formatTime(tempAudio.duration)}). Por favor, sube un archivo más corto.`, null);
                                 return;
                             }
-                            // Create element locally and then send to server
                             createLocalElementAndSend(file, e.target.result, tempAudio.duration);
                         }, { once: true });
                         tempAudio.addEventListener('error', (err) => {
                             console.error('Error loading audio metadata:', err);
-                            // loadingSpinner.classList.add('hidden'); // Spinner removed
                         }, { once: true });
                     } else {
                         console.log(`[FILE_HANDLER] File is image/gif: ${file.name}`);
-                        // Create element locally and then send to server
                         createLocalElementAndSend(file, e.target.result);
                     }
                 };
                 reader.readAsDataURL(file);
-                // loadingSpinner.classList.remove('hidden'); // Spinner removed
             }
         }
 
-        // Renamed from createAndAddElement to emphasize local creation first
         function createLocalElementAndSend(file, srcData, audioDuration = null) {
             const newId = generateUniqueId();
-            // lastAddedElementId = newId; // No longer needed for spinner control
             let elementState = {
                 id: newId,
                 originalName: file.name
@@ -1767,11 +1749,11 @@
                 wrapperDiv.style.minWidth = '50px';
                 wrapperDiv.style.minHeight = '30px';
                 wrapperDiv.style.zIndex = getNextHighestZIndex();
-                applyElementTransform(wrapperDiv, 0, 1); // Initial rotation 0, scale 1
+                applyElementTransform(wrapperDiv, 0, 1);
                 wrapperDiv.style.opacity = '1';
 
                 const contentElement = document.createElement('img');
-                contentElement.src = srcData; // Use Base64 locally first
+                contentElement.src = srcData;
                 contentElement.alt = file.name;
                 contentElement.classList.add('element-content');
                 wrapperDiv.appendChild(contentElement);
@@ -1804,44 +1786,38 @@
                     
                     addHandles(wrapperDiv);
                     mainCanvasWrapper.appendChild(wrapperDiv);
-                    allElements.set(wrapperDiv.id, wrapperDiv); // Add to local map
+                    allElements.set(wrapperDiv.id, wrapperDiv);
 
-                    // Store initial aspect ratio on the wrapper for resizing
                     wrapperDiv.dataset.initialAspectRatio = aspectRatio;
 
-                    // Immediately update UI and select locally
                     updateLayersList();
                     updateFileCountDisplay();
                     selectElement(wrapperDiv); 
                     
-                    // Prepare and send data to server
                     elementState = {
                         ...elementState,
                         left: wrapperDiv.style.left,
                         top: wrapperDiv.style.top,
                         width: wrapperDiv.style.width,
                         height: wrapperDiv.style.height,
-                        rotation: 0, // Store as number for consistency
-                        scale: 1, // Store as number for consistency
+                        rotation: 0,
+                        scale: 1,
                         zIndex: wrapperDiv.style.zIndex,
                         opacity: '1',
                         type: 'img',
-                        src: srcData, // Send Base64 to server for upload to Cloudinary
+                        src: srcData,
                         initialAspectRatio: aspectRatio
                     };
                     sendWebSocketMessage('elementAdd', { element: elementState });
                 };
-                // If the image is already cached, onload might not fire.
-                // Handle this by manually triggering if complete.
                 if (contentElement.complete) {
                     contentElement.onload();
                 }
 
             } else if (file.type.startsWith('audio/')) {
-                // No visual wrapper is created for audio. Audio element is managed directly.
                 const audioElement = document.createElement('audio');
                 audioElement.id = newId;
-                audioElement.src = srcData; // Use Base64 locally first
+                audioElement.src = srcData;
                 audioElement.volume = 0.5;
                 audioElement.currentTime = 0;
                 audioElement.dataset.lastVolume = 0.5;
@@ -1850,45 +1826,42 @@
                 audioElement.dataset.type = 'audio';
 
                 if (audioDuration !== null) {
-                    audioElement.duration = audioDuration; // Use provided duration if available
+                    audioElement.duration = audioDuration;
                 } else {
-                    // Fallback: listen for metadata if duration not provided immediately
                     audioElement.addEventListener('loadedmetadata', () => {
                         updateTimelineDisplay(audioElement);
                         const updatedElementState = {
                             ...elementState,
                             duration: audioElement.duration,
                             type: 'audio',
-                            src: srcData, // Still Base64 for sending to server
+                            src: srcData,
                             volume: audioElement.volume,
                             currentTime: audioElement.currentTime,
                             paused: audioElement.paused,
                             isPlaying: !audioElement.paused,
                             lastVolume: audioElement.dataset.lastVolume
                         };
-                        // Send an update message if duration changes after initial creation
                         sendWebSocketMessage('elementUpdate', { element: updatedElementState });
                     }, { once: true });
                 }
 
-                allElements.set(audioElement.id, audioElement); // Add to local map
-                addAudioItemToPlaylistUI(audioElement); // Add to playlist UI
+                allElements.set(audioElement.id, audioElement);
+                addAudioItemToPlaylistUI(audioElement);
                 updateFileCountDisplay();
-                selectAudioElement(audioElement); // Select the audio locally
+                selectAudioElement(audioElement);
 
-                // Prepare and send data to server
                 elementState = {
                     ...elementState,
                     type: 'audio',
-                    src: srcData, // Send Base64 to server for upload to Cloudinary
+                    src: srcData,
                     volume: audioElement.volume,
                     currentTime: audioElement.currentTime,
                     paused: audioElement.paused,
                     isPlaying: !audioElement.paused,
-                    duration: audioElement.duration || audioDuration, // Send current duration or estimated
+                    duration: audioElement.duration || audioDuration,
                     lastVolume: audioElement.dataset.lastVolume,
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1 // Add visual properties for consistency, though not used by audio
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1
                 };
                 sendWebSocketMessage('elementAdd', { element: elementState });
             }
@@ -1898,7 +1871,7 @@
         imageUpload.addEventListener('change', (event) => {
             if (event.target.files.length > 0) {
                 handleFile(event.target.files[0]);
-                event.target.value = ''; // Clear input to allow re-uploading same file
+                event.target.value = '';
             }
         });
 
@@ -1911,7 +1884,6 @@
 
             const textContent = textInput.value.trim() === '' ? 'New Text' : textInput.value;
             const newId = generateUniqueId();
-            // lastAddedElementId = newId; // No longer needed for spinner control
 
             const wrapperDiv = document.createElement('div');
             wrapperDiv.id = newId;
@@ -1919,7 +1891,7 @@
 
             const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
             const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
-            const initialLeft = greenCanvasCenterX - (100 / 2); // Initial arbitrary center for text
+            const initialLeft = greenCanvasCenterX - (100 / 2);
             const initialTop = greenCanvasCenterY - (50 / 2);
 
             wrapperDiv.style.left = `${initialLeft}px`;
@@ -1927,10 +1899,10 @@
             wrapperDiv.style.minWidth = '50px';
             wrapperDiv.style.minHeight = '30px';
             wrapperDiv.style.zIndex = getNextHighestZIndex();
-            applyElementTransform(wrapperDiv, 0, 1); // Initial rotation 0, scale 1
+            applyElementTransform(wrapperDiv, 0, 1);
             wrapperDiv.style.opacity = '1';
-            wrapperDiv.style.width = 'auto'; // Will be adjusted by adjustTextElementWrapperSize
-            wrapperDiv.style.height = 'auto'; // Will be adjusted by adjustTextElementWrapperSize
+            wrapperDiv.style.width = 'auto';
+            wrapperDiv.style.height = 'auto';
             wrapperDiv.dataset.originalName = 'Text Element';
 
             const textDiv = document.createElement('div');
@@ -1972,11 +1944,10 @@
             wrapperDiv.appendChild(textDiv);
             addHandles(wrapperDiv);
             mainCanvasWrapper.appendChild(wrapperDiv);
-            allElements.set(wrapperDiv.id, wrapperDiv); // Add to local map
+            allElements.set(wrapperDiv.id, wrapperDiv);
             adjustTextElementWrapperSize(wrapperDiv);
-            textDiv.focus();
+            textDiv.focus(); // Focus the newly created text element for immediate editing
 
-            // Immediately update UI and select locally
             updateLayersList();
             updateFileCountDisplay();
             selectElement(wrapperDiv); 
@@ -1987,8 +1958,8 @@
                 top: wrapperDiv.style.top,
                 width: wrapperDiv.style.width,
                 height: wrapperDiv.style.height,
-                rotation: 0, // Store as number
-                scale: 1, // Store as number
+                rotation: 0,
+                scale: 1,
                 zIndex: wrapperDiv.style.zIndex,
                 opacity: textDiv.style.opacity,
                 originalName: wrapperDiv.dataset.originalName,
@@ -2005,16 +1976,17 @@
                 hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0)
             };
             sendWebSocketMessage('elementAdd', { element: elementState });
-            // loadingSpinner.classList.remove('hidden'); // Spinner removed
         });
 
         textInput.addEventListener('input', () => {
+            // This event listener should only update the selected element if one is selected.
+            // For adding new text, the textInput.value is directly used in addTextBtn click.
             if (selectedElementWrapper) {
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.textContent = textInput.value;
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    updateLayersList(); // Update layer list name if text changed
+                    updateLayersList();
 
                     if (!pendingUpdateAnimationFrame) {
                         pendingUpdateAnimationFrame = requestAnimationFrame(() => {
@@ -2045,9 +2017,9 @@
                     duration: element.duration,
                     lastVolume: element.dataset.lastVolume,
                     originalName: element.dataset.originalName,
-                    publicId: element.dataset.publicId, // Incluir publicId
+                    publicId: element.dataset.publicId,
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1 // Añadir rotación y escala para consistencia
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -2082,14 +2054,14 @@
                     currentScale = parseFloat(scaleMatch[1]);
                 }
 
-                state.rotation = currentRotation; // Store as number
-                state.scale = currentScale; // Store as number
+                state.rotation = currentRotation;
+                state.scale = currentScale;
 
                 if (contentElement.tagName === 'IMG') {
                     state.type = 'img';
                     state.src = contentElement.src;
                     state.initialAspectRatio = element.dataset.initialAspectRatio;
-                    state.publicId = element.dataset.publicId; // Incluir publicId
+                    state.publicId = element.dataset.publicId;
                 } else if (contentElement.classList.contains('text-content')) {
                     state.type = 'text';
                     state.textContent = contentElement.textContent;
@@ -2171,30 +2143,25 @@
                 if (!originalState) return;
 
                 const newId = generateUniqueId();
-                // lastAddedElementId = newId; // No longer needed for spinner control
 
-                // Create a deep copy of the original wrapper
                 const clonedWrapper = selectedElementWrapper.cloneNode(true);
                 clonedWrapper.id = newId;
                 clonedWrapper.style.left = `${parseFloat(selectedElementWrapper.style.left) + 20}px`;
                 clonedWrapper.style.top = `${parseFloat(selectedElementWrapper.style.top) + 20}px`;
                 clonedWrapper.style.zIndex = getNextHighestZIndex();
                 
-                // Ensure handles are hidden for the new clone until selected
                 clonedWrapper.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'none');
                 const cloneRotationHandle = clonedWrapper.querySelector('.rotation-handle');
                 if (cloneRotationHandle) cloneRotationHandle.style.display = 'none';
                 
-                clonedWrapper.classList.remove('selected'); // Ensure the copy is not initially selected
+                clonedWrapper.classList.remove('selected');
 
-                // Re-initialize contentEditable for duplicated text elements
                 const clonedContentElement = clonedWrapper.querySelector('.element-content');
                 if (clonedContentElement && clonedContentElement.classList.contains('text-content')) {
                     clonedContentElement.contentEditable = true;
-                    adjustTextElementWrapperSize(clonedWrapper); // Re-adjust size for text elements
+                    adjustTextElementWrapperSize(clonedWrapper);
                 }
 
-                // If it's an image, ensure initialAspectRatio and publicId are copied
                 if (clonedWrapper.dataset.initialAspectRatio === undefined && originalState.initialAspectRatio) {
                     clonedWrapper.dataset.initialAspectRatio = originalState.initialAspectRatio;
                 }
@@ -2203,16 +2170,14 @@
                 }
                 
                 mainCanvasWrapper.appendChild(clonedWrapper);
-                allElements.set(newId, clonedWrapper); // Add to local map
+                allElements.set(newId, clonedWrapper);
 
                 updateLayersList();
                 updateFileCountDisplay();
-                selectElement(clonedWrapper); // Select the new copy locally
+                selectElement(clonedWrapper);
                 
-                // Send the cloned element state to the server (src will be URL, not Base64)
                 const clonedState = getElementState(clonedWrapper);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
-                // loadingSpinner.classList.remove('hidden'); // Spinner removed
             }
         });
 
@@ -2397,7 +2362,7 @@
         resetRotationBtn.addEventListener('click', () => {
             if (selectedElementWrapper) {
                 const currentScale = getElementState(selectedElementWrapper).scale;
-                applyElementTransform(selectedElementWrapper, 0, currentScale); // Reiniciar solo rotación
+                applyElementTransform(selectedElementWrapper, 0, currentScale);
                 rotationRange.value = 0;
                 rotationValue.textContent = '0°';
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2407,7 +2372,7 @@
         resetSizeBtn.addEventListener('click', () => {
             if (selectedElementWrapper) {
                 const currentRotation = getElementState(selectedElementWrapper).rotation;
-                applyElementTransform(selectedElementWrapper, currentRotation, 1); // Reiniciar solo escala
+                applyElementTransform(selectedElementWrapper, currentRotation, 1);
                 sizeRange.value = 1;
                 sizeValue.textContent = '100%';
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2444,7 +2409,7 @@
                 if (parseFloat(volumeRange.value) === 0) {
                     selectedAudioElement.muted = true;
                 } else {
-                    selectedAudioElement.muted = isMutedGlobally; // Respect global mute state
+                    selectedAudioElement.muted = isMutedGlobally;
                 }
                 volumeValueDisplay.textContent = `${Math.round(volumeRange.value * 100)}%`;
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
@@ -2462,8 +2427,8 @@
         bringToFrontBtn.addEventListener('click', () => {
             if (selectedElementWrapper) {
                 selectedElementWrapper.style.zIndex = getNextHighestZIndex();
-                updateLayersList(); // Update list to reflect z-index change
-                selectElement(selectedElementWrapper); // Re-select to update sidebar with correct z-index
+                updateLayersList();
+                selectElement(selectedElementWrapper);
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 const updatedElementsForReorder = Array.from(allElements.values())
                                                     .filter(el => el.classList && el.classList.contains('element-wrapper'))
@@ -2506,7 +2471,7 @@
                     const centerX = rect.left + rect.width / 2;
                     const centerY = rect.top + rect.height / 2;
                     initialRotationAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
-                    initialElementRotation = getElementState(selectedElementWrapper).rotation; // Obtener la rotación del estado
+                    initialElementRotation = getElementState(selectedElementWrapper).rotation;
                     return;
                 }
 
@@ -2521,7 +2486,6 @@
                  e.stopPropagation();
             }
             else {
-                // If clicked outside any interactive element (wrapper, audio list, sidebar, zoom, modal), deselect all.
                 if (!target.closest('aside') && !target.closest('.zoom-controls') && !target.closest('.modal-overlay')) {
                     deselectAllElements();
                 }
@@ -2567,7 +2531,6 @@
                     let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
                     let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
 
-                    // Maintain aspect ratio while resizing images
                     if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
                         newWidth = potentialNewWidth;
                         newHeight = newWidth / originalImageAspectRatio;
@@ -2576,7 +2539,7 @@
                         newWidth = newHeight * originalImageAspectRatio;
                     }
 
-                    newWidth = Math.max(20, newWidth); // Minimum size
+                    newWidth = Math.max(20, newWidth);
                     newHeight = Math.max(20, newHeight);
 
                     if (activeHandle.includes('left')) {
@@ -2587,7 +2550,6 @@
                     }
 
                 } else if (contentElement && contentElement.classList.contains('text-content')) {
-                    // Resizing for text elements, consider minimum content size
                     switch (activeHandle) {
                         case 'top-left':
                             newWidth = initialWidth - dx;
@@ -2652,7 +2614,6 @@
                     const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
                     const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
 
-                    // Adjust position based on clamping
                     const widthDiff = clampedWidth - newWidth;
                     const heightDiff = clampedHeight - newHeight;
                     if (activeHandle.startsWith('top-')) {
@@ -2665,7 +2626,7 @@
                     newHeight = clampedHeight;
                 }
 
-                newWidth = Math.max(20, newWidth); // Ensure minimum size for all resizable elements
+                newWidth = Math.max(20, newWidth);
                 newHeight = Math.max(20, newHeight);
 
                 selectedElementWrapper.style.width = `${newWidth}px`;
@@ -2673,7 +2634,6 @@
                 selectedElementWrapper.style.left = `${newLeft}px`;
                 selectedElementWrapper.style.top = `${newTop}px`;
 
-                // Update initial values for next mousemove event
                 initialMouseX = currentMouseXOnUnscaledWrapper;
                 initialMouseY = currentMouseYOnUnscaledWrapper;
                 initialWidth = newWidth;
@@ -2696,10 +2656,10 @@
                 const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
                 const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
                 let newRotation = initialElementRotation + angleDiff;
-                newRotation = (newRotation % 360 + 360) % 360; // Normalize to 0-360
+                newRotation = (newRotation % 360 + 360) % 360;
 
-                const currentScale = getElementState(selectedElementWrapper).scale; // Get current scale
-                applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Apply rotation and scale
+                const currentScale = getElementState(selectedElementWrapper).scale;
+                applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                 rotationRange.value = newRotation;
                 rotationValue.textContent = `${Math.round(newRotation)}°`;
 
@@ -2737,7 +2697,7 @@
             const touchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
             const touchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
-            if (e.touches.length === 1) { // Single touch for drag, resize, rotate
+            if (e.touches.length === 1) {
                 if (clickedWrapper) {
                     if (target.classList.contains('resize-handle')) {
                         e.preventDefault();
@@ -2761,7 +2721,7 @@
                         const centerX = rect.left + rect.width / 2;
                         const centerY = rect.top + rect.height / 2;
                         initialRotationAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX);
-                        initialElementRotation = getElementState(selectedElementWrapper).rotation; // Obtener la rotación del estado
+                        initialElementRotation = getElementState(selectedElementWrapper).rotation;
                         return;
                     }
 
@@ -2787,7 +2747,7 @@
             const currentTouchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
-            if (e.touches.length === 1) { // Single touch
+            if (e.touches.length === 1) {
                 if (isDragging && selectedElementWrapper) {
                     e.preventDefault();
                     const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
@@ -2822,7 +2782,6 @@
                         let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
                         let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
 
-                        // Maintain aspect ratio while resizing images
                         if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
                             newWidth = potentialNewWidth;
                             newHeight = newWidth / originalImageAspectRatio;
@@ -2842,7 +2801,6 @@
                         }
 
                     } else if (contentElement && contentElement.classList.contains('text-content')) {
-                        // Resizing for text elements
                         switch (activeHandle) {
                             case 'top-left':
                                 newWidth = initialWidth - dx;
@@ -2907,7 +2865,6 @@
                         const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
                         const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
 
-                        // Adjust position based on clamping
                         const widthDiff = clampedWidth - newWidth;
                         const heightDiff = clampedHeight - newHeight;
                         if (activeHandle.startsWith('top-')) {
@@ -2952,8 +2909,8 @@
                     let newRotation = initialElementRotation + angleDiff;
                     newRotation = (newRotation % 360 + 360) % 360;
 
-                    const currentScale = getElementState(selectedElementWrapper).scale; // Get current scale
-                    applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Apply rotation and scale
+                    const currentScale = getElementState(selectedElementWrapper).scale;
+                    applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                     rotationRange.value = newRotation;
                     rotationValue.textContent = `${Math.round(newRotation)}°`;
 
@@ -2993,10 +2950,9 @@
                 document.getElementById(`tab-content-${tabId}`).classList.add('active');
 
                 if (tabId === 'audio') {
-                    // When switching to audio tab, deselect visual elements and select first audio if available.
                     if (selectedElementWrapper) {
                         console.log("[TAB_CHANGE] Deselecting visual element when switching to audio tab.");
-                        deselectAllElements();
+                        deselectAllElements(); // This will also re-enable textInput
                     }
                     const firstAudio = Array.from(allElements.values()).find(el => el.tagName === 'AUDIO');
                     if (firstAudio) {
@@ -3004,12 +2960,15 @@
                         selectAudioElement(firstAudio);
                     }
                 } else {
-                    // When switching away from audio tab, deselect audio controls.
                     if (selectedAudioElement) {
                         console.log("[TAB_CHANGE] Deselecting audio element when switching away from audio tab.");
                         deselectAudioControls();
                     }
-                    // If returning to properties and a visual element was previously selected, re-select it.
+                    // When switching to 'properties' or 'text' tab, ensure text input is always enabled
+                    if (tabId === 'properties' || tabId === 'text') {
+                        // textInput.disabled = false; // Already handled by deselectAllElements
+                    }
+
                     if (tabId === 'properties' && selectedElementWrapper) {
                         console.log("[TAB_CHANGE] Re-selecting previously selected visual element.");
                         selectElement(selectedElementWrapper);
@@ -3049,8 +3008,8 @@
                 draggedLayer.style.opacity = '1';
                 draggedLayer = null;
 
-                let maxZ = getNextHighestZIndex() - 1; // Get the current highest Z-index
-                if (maxZ < 100) { // Ensure a minimum starting Z-index for layers if none exist
+                let maxZ = getNextHighestZIndex() - 1;
+                if (maxZ < 100) {
                     maxZ = 100;
                 }
 
@@ -3060,15 +3019,15 @@
                     if (layerItem.dataset.id) {
                         const elementWrapper = allElements.get(layerItem.dataset.id);
                         if (elementWrapper) {
-                            const newZIndex = maxZ - index; // Assign new Z-index based on new order (top of list = higher Z-index)
+                            const newZIndex = maxZ - index;
                             elementWrapper.style.zIndex = newZIndex;
                             updatedElementsForReorder.push({ id: elementWrapper.id, zIndex: newZIndex });
                         }
                     }
                 });
 
-                updateLayersList(); // Refresh the display of layers
-                sendWebSocketMessage('reorderLayers', { elements: updatedElementsForReorder }); // Send updates to server
+                updateLayersList();
+                sendWebSocketMessage('reorderLayers', { elements: updatedElementsForReorder });
             }
         });
 
@@ -3099,32 +3058,30 @@
         const confirmationModal = document.createElement('div');
         confirmationModal.id = 'confirmationModal';
         confirmationModal.classList.add('modal-overlay');
+        // Updated modal HTML to have only one "OK" button
         confirmationModal.innerHTML = `
             <div class="modal-dialog">
-                <h3 class="modal-title">Confirmación</h3>
+                <h3 class="modal-title">Aviso</h3>
                 <p class="modal-message" id="confirmationMessage"></p>
                 <div class="modal-buttons">
-                    <button id="confirmYesBtn" class="modal-button sound">Sí</button>
-                    <button id="confirmNoBtn" class="modal-button mute">No</button>
+                    <button id="confirmOkBtn" class="modal-button ok">OK</button>
                 </div>
             </div>
         `;
         document.body.appendChild(confirmationModal);
 
-        document.getElementById('confirmYesBtn').addEventListener('click', () => {
-            if (confirmationModalCallback) {
-                confirmationModalCallback();
-            }
+        // Event listener for the new "OK" button
+        document.getElementById('confirmOkBtn').addEventListener('click', () => {
             confirmationModal.classList.remove('active');
+            // For simple "OK" modals, no callback is usually needed as the action is just dismissal.
+            // If a specific action was still desired, it would be passed as a callback for showConfirmationModal
+            // and executed here. But for the MP3 duration message, we just close it.
         });
 
-        document.getElementById('confirmNoBtn').addEventListener('click', () => {
-            confirmationModal.classList.remove('active');
-        });
-
-        function showConfirmationModal(message, callback) {
+        // Simplified showConfirmationModal function
+        function showConfirmationModal(message, callback) { // callback is kept for compatibility but not used for MP3 warning
             document.getElementById('confirmationMessage').textContent = message;
-            confirmationModalCallback = callback;
+            // confirmationModalCallback = callback; // No longer storing callback for simple OK modal
             confirmationModal.classList.add('active');
         }
 
@@ -3133,7 +3090,7 @@
             connectWebSocket();
             loadElementsState();
             mainCanvasWrapper.style.transformOrigin = 'center center';
-            deselectAllElements();
+            deselectAllElements(); // This will now ensure textInput is enabled by default
             updateLayersList();
             updateAudioPlaylistDisplay();
             updateFileCountDisplay();
