@@ -316,37 +316,6 @@
             width: 16px;
             margin-top: -5px;
         }
-        #loadingSpinner {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 1.5rem 2rem;
-            border-radius: 0.75rem;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            font-size: 1.125rem;
-            font-weight: 600;
-        }
-        #loadingSpinner.hidden {
-            display: none;
-        }
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #8B5CF6;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
         #wsStatus {
             font-size: 0.75rem;
             font-weight: 500;
@@ -446,10 +415,7 @@
     </style>
 </head>
 <body class="h-screen flex text-gray-800">
-    <div id="loadingSpinner" class="hidden">
-        <div class="spinner"></div>
-        Cargando elementos...
-    </div>
+    <!-- El spinner de carga ha sido eliminado -->
     <div id="mutePreferenceModal" class="modal-overlay">
         <div class="modal-dialog">
             <h3 class="modal-title">¡Atención!</h3>
@@ -690,7 +656,7 @@
         const zoomRange = document.getElementById('newZoomRange');
         const zoomValue = document.getElementById('zoomValue');
         const dropArea = document.getElementById('dropArea');
-        const loadingSpinner = document.getElementById('loadingSpinner');
+        // const loadingSpinner = document.getElementById('loadingSpinner'); // No longer needed
         const wsStatusElement = document.getElementById('wsStatus');
         const mutePreferenceModal = document.getElementById('mutePreferenceModal');
         const modalMuteBtn = document.getElementById('modalMuteBtn');
@@ -712,6 +678,7 @@
         let ws;
         let reconnectInterval;
         let pendingUpdateAnimationFrame = null;
+        // let lastAddedElementId = null; // No longer needed for spinner control
 
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -752,25 +719,36 @@
                     updateFileCountDisplay();
                     deselectAllElements();
                 } else if (message.type === 'elementAdd') {
-                    if (message.element.type === 'audio') {
-                        createAudioElementAndAddToPlaylist(message.element);
-                        // Force switch to audio tab and select the new audio
-                        document.querySelector('.tab-button[data-tab="audio"]').click(); // Simulate click to switch tab
-                        const newAudioElement = allElements.get(message.element.id);
-                        if (newAudioElement) {
-                            selectAudioElement(newAudioElement); // Select the new audio in the list
-                        }
-                    } else { // It's a visual element (img or text)
-                        createElementFromData(message.element);
-                        const newVisualElement = allElements.get(message.element.id);
-                        if (newVisualElement && message.element.type === 'text') {
-                            // For text, select immediately. For images, onload will handle selection.
-                            selectElement(newVisualElement);
+                    console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}`);
+
+                    // Since we create elements locally first, we just need to update if it exists,
+                    // or create if it came from another client.
+                    if (allElements.has(message.element.id)) {
+                        console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} already exists locally, updating.`);
+                        // This update is crucial to get the Cloudinary URL and publicId from the server
+                        // if the element was initially added with a Base64 URL.
+                        updateElementFromData(message.element);
+                    } else {
+                        console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new (from another client), creating it.`);
+                        if (message.element.type === 'audio') {
+                            createAudioElementAndAddToPlaylist(message.element);
+                            // Force switch to audio tab and select the new audio
+                            document.querySelector('.tab-button[data-tab="audio"]').click(); // Simulate click to switch tab
+                            const newAudioElement = allElements.get(message.element.id);
+                            if (newAudioElement) {
+                                selectAudioElement(newAudioElement); // Select the new audio in the list
+                            }
+                        } else { // It's a visual element (img or text)
+                            createElementFromData(message.element);
+                            const newVisualElement = allElements.get(message.element.id);
+                            if (newVisualElement) { // Ensure element exists after creation
+                                selectElement(newVisualElement); // Select the new visual element (for other clients)
+                            }
                         }
                     }
                     updateLayersList();
                     updateAudioPlaylistDisplay();
-                    updateFileCountDisplay(); // Asegurarse de que el contador de archivos se actualice también
+                    updateFileCountDisplay();
                 } else if (message.type === 'elementUpdate') {
                     updateElementFromData(message.element);
                     updateLayersList();
@@ -790,6 +768,7 @@
                     updateLayersList();
                 } 
                 else if (message.type === 'ping') {
+                    // console.log("Received ping, sending pong."); // Optional: log pings
                 }
             };
 
@@ -947,20 +926,27 @@
             element.style.transform = `rotate(${rotation}deg) scale(${scale})`;
         }
 
+        // Renamed from createAndAddElement for consistency as it's now called for elements from other clients
         function createElementFromData(data) {
-            if (data.type === 'audio') {
+            // If the element already exists (e.g., this client just created it locally), just update its data
+            if (allElements.has(data.id)) {
+                const existingElement = allElements.get(data.id);
+                if (existingElement.classList && existingElement.classList.contains('element-wrapper')) {
+                    // It's a visual element that was already created locally, so update.
+                    updateElementFromData(data);
+                    return;
+                }
+                // If it's an audio, it would have been created by createAudioElementAndAddToPlaylist
+                // and its properties will be updated by updateElementFromData when it arrives.
+                // We don't want to recreate the audio element here.
+            }
+
+            if (data.type === 'audio') { // If it's an audio, delegate to its specific creation/update function
                 createAudioElementAndAddToPlaylist(data);
                 return;
             }
 
-            if (allElements.has(data.id)) {
-                const existingElement = allElements.get(data.id);
-                if (existingElement && existingElement.classList && existingElement.classList.contains('element-wrapper')) {
-                    updateElementFromData(data);
-                    return;
-                }
-            }
-
+            // For visual elements (img, text)
             const wrapperDiv = document.createElement('div');
             wrapperDiv.id = data.id;
             wrapperDiv.classList.add('element-wrapper');
@@ -994,12 +980,11 @@
                 wrapperDiv.style.width = data.width;
                 wrapperDiv.style.height = data.height;
 
-                // IMPORTANT: Attach onload listener for images here to handle selection after load
                 contentElement.onload = () => {
-                    // Check if this newly loaded image is the one the user just added/selected
-                    // This will ensure the UI updates with proper dimensions after image is rendered
+                    console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
+                    // If this image is currently selected, refresh its properties in the sidebar.
                     if (selectedElementWrapper && selectedElementWrapper.id === wrapperDiv.id) {
-                         selectElement(wrapperDiv); // Re-select to update sidebar with correct properties
+                         selectElement(wrapperDiv); 
                     }
                 };
                 // Handle cases where the image might already be in browser cache
@@ -1043,8 +1028,6 @@
             addHandles(wrapperDiv);
             mainCanvasWrapper.appendChild(wrapperDiv);
             allElements.set(wrapperDiv.id, wrapperDiv);
-
-            // Removed `wrapperDiv.offsetHeight;` as onload handles image rendering, and text adjustment is below.
 
             if (data.type === 'text') {
                 adjustTextElementWrapperSize(wrapperDiv);
@@ -1094,8 +1077,6 @@
 
                 allElements.set(audioElement.id, audioElement);
                 console.log(`[AUDIO_CREATE] Audio element ${audioElement.id} added to allElements. Map size: ${allElements.size}`);
-                // La adición a la UI se manejará centralmente por updateAudioPlaylistDisplay()
-                // addAudioItemToPlaylistUI(audioElement);
             } else {
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} already exists, updating properties.`);
                 audioElement.src = data.src;
@@ -1103,7 +1084,6 @@
                 audioElement.currentTime = data.currentTime;
                 audioElement.dataset.lastVolume = data.lastVolume;
                 audioElement.muted = data.muted || isMutedGlobally;
-                audioElement.dataset.originalName = data.originalName || `Audio ${data.id.substring(data.id.length - 4)}`;
                 if (data.publicId) {
                     audioElement.dataset.publicId = data.publicId;
                 }
@@ -1123,7 +1103,6 @@
             if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
                 selectAudioElement(audioElement);
             }
-            // updateAudioPlaylistDisplay();
         }
 
         function addAudioItemToPlaylistUI(audioElement) {
@@ -1386,8 +1365,8 @@
             resetSizeBtn.disabled = true; // Deshabilitar reset de tamaño
             bringToFrontBtn.disabled = true;
 
-            textInput.disabled = false;
-            textInput.value = '';
+            textInput.disabled = false; // Enable text input for new text
+            textInput.value = ''; // Clear text input
             textColorInput.value = '#FFFFFF';
             textBgColorInput.value = '#000000';
             toggleTextBg.checked = false;
@@ -1399,28 +1378,26 @@
             fontSizeValue.textContent = '24px';
             boldTextBtn.classList.remove('active-style');
             italicTextBtn.classList.remove('active-style');
-            textColorInput.disabled = false;
+            textColorInput.disabled = false; // Enable text controls for new text input
             boldTextBtn.disabled = false;
             italicTextBtn.disabled = false;
             toggleTextBg.disabled = false;
             toggleTextOutline.disabled = false;
             fontSizeRange.disabled = false;
 
+            // Update disabled states for text background/outline
             textBgColorInput.disabled = !toggleTextBg.checked;
-            textBgColorLabel.classList.add('text-gray-600');
-            textBgColorLabel.classList.remove('text-gray-300');
+            textBgColorLabel.classList.toggle('text-gray-600', !toggleTextBg.checked);
+            textBgColorLabel.classList.toggle('text-gray-300', toggleTextBg.checked);
             textOutlineColorInput.disabled = !toggleTextOutline.checked;
             outlineThicknessRange.disabled = !toggleTextOutline.checked;
-            textOutlineColorLabel.classList.add('text-gray-600');
-            textOutlineColorLabel.classList.remove('text-gray-300');
-            outlineThicknessLabel.classList.add('text-gray-600');
-            outlineThicknessLabel.classList.remove('text-gray-300');
+            textOutlineColorLabel.classList.toggle('text-gray-600', !toggleTextOutline.checked);
+            textOutlineColorLabel.classList.toggle('text-gray-300', toggleTextOutline.checked);
+            outlineThicknessLabel.classList.toggle('text-gray-600', !toggleTextOutline.checked);
+            outlineThicknessLabel.classList.toggle('text-gray-300', toggleTextOutline.checked);
 
             document.querySelectorAll('.audio-list-item').forEach(item => item.classList.remove('selected'));
             deselectAudioControls();
-
-            if (textInput.value === '') {
-            }
         }
 
         function deselectAudioControls() {
@@ -1440,7 +1417,7 @@
 
         function selectElement(element) {
             console.log(`[SELECT] Attempting to select element ID: ${element.id}, type: ${element.tagName}`);
-            deselectAllElements();
+            deselectAllElements(); // Deselect everything first
 
             if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[SELECT] Selecting VISUAL element: ${element.id}`);
@@ -1545,7 +1522,8 @@
                         italicTextBtn.classList.remove('active-style');
                     }
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                } else {
+                } else { // If it's not a text element (e.g., an image)
+                    // Disable text-specific controls
                     textInput.disabled = true;
                     textColorInput.disabled = true;
                     boldTextBtn.disabled = true;
@@ -1564,7 +1542,7 @@
                     outlineThicknessLabel.classList.remove('text-gray-300');
                 }
 
-                deselectAudioControls();
+                deselectAudioControls(); // Ensure audio controls are deselected
 
                 const layerItem = document.querySelector(`.layer-item[data-id="${element.id}"]`);
                 if (layerItem) {
@@ -1575,7 +1553,7 @@
 
         function selectAudioElement(audioElement) {
             console.log(`[SELECT] Selecting AUDIO element: ${audioElement.id}`);
-            deselectAllElements();
+            deselectAllElements(); // Deselect all visual elements first
 
             selectedAudioElement = audioElement;
             document.querySelectorAll('.audio-list-item').forEach(item => item.classList.remove('selected'));
@@ -1584,15 +1562,17 @@
                 listItem.classList.add('selected');
             }
 
+            // Disable visual element controls
             opacityRange.disabled = true;
             rotationRange.disabled = true;
-            sizeRange.disabled = true; // Deshabilitar tamaño
+            sizeRange.disabled = true; 
             duplicateElementBtn.disabled = true;
             bringToFrontBtn.disabled = true;
             resetOpacityBtn.disabled = true;
             resetRotationBtn.disabled = true;
-            resetSizeBtn.disabled = true; // Deshabilitar reset de tamaño
+            resetSizeBtn.disabled = true; 
 
+            // Disable text-specific controls
             textInput.disabled = true;
             textColorInput.disabled = true;
             boldTextBtn.disabled = true;
@@ -1611,11 +1591,12 @@
             outlineThicknessLabel.classList.remove('text-gray-300');
 
 
+            // Enable audio controls
             playPauseBtn.disabled = false;
             volumeRange.disabled = false;
             timelineRange.disabled = false;
 
-            audioElement.muted = isMutedGlobally;
+            audioElement.muted = isMutedGlobally; // Apply global mute state to selected audio
             volumeRange.value = audioElement.volume;
             volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
             updatePlayPauseButton(audioElement.paused);
@@ -1701,7 +1682,8 @@
                 return;
             }
 
-            audioElements.forEach(audioElement => {
+            // Ensure consistent order when updating display (e.g., by original name or ID)
+            audioElements.sort((a, b) => a.dataset.originalName.localeCompare(b.dataset.originalName)).forEach(audioElement => {
                 addAudioItemToPlaylistUI(audioElement);
             });
         }
@@ -1745,42 +1727,59 @@
                         tempAudio.src = e.target.result;
                         tempAudio.addEventListener('loadedmetadata', () => {
                             console.log(`[FILE_HANDLER] Audio metadata loaded for ${file.name}. Duration: ${tempAudio.duration}`);
-                            if (tempAudio.duration > 480) {
+                            if (tempAudio.duration > 480) { // Max 8 minutes (480 seconds)
                                 console.warn(`Audio file "${file.name}" exceeds 8-minute limit (${formatTime(tempAudio.duration)}). Not added.`);
+                                // loadingSpinner.classList.add('hidden'); // Spinner removed
                                 return;
                             }
-                            // Enviar Base64 al servidor para que lo suba a Cloudinary
-                            createAndAddElement(file, e.target.result, tempAudio.duration);
+                            // Create element locally and then send to server
+                            createLocalElementAndSend(file, e.target.result, tempAudio.duration);
                         }, { once: true });
                         tempAudio.addEventListener('error', (err) => {
                             console.error('Error loading audio metadata:', err);
+                            // loadingSpinner.classList.add('hidden'); // Spinner removed
                         }, { once: true });
                     } else {
                         console.log(`[FILE_HANDLER] File is image/gif: ${file.name}`);
-                        // Enviar Base64 al servidor para que lo suba a Cloudinary
-                        createAndAddElement(file, e.target.result);
+                        // Create element locally and then send to server
+                        createLocalElementAndSend(file, e.target.result);
                     }
                 };
                 reader.readAsDataURL(file);
+                // loadingSpinner.classList.remove('hidden'); // Spinner removed
             }
         }
 
-        function createAndAddElement(file, srcData, audioDuration = null) {
+        // Renamed from createAndAddElement to emphasize local creation first
+        function createLocalElementAndSend(file, srcData, audioDuration = null) {
             const newId = generateUniqueId();
+            // lastAddedElementId = newId; // No longer needed for spinner control
             let elementState = {
                 id: newId,
                 originalName: file.name
             };
-            console.log(`[ADD_ELEMENT] Creating new element with ID: ${newId}, Name: ${file.name}`);
+            console.log(`[LOCAL_CREATE] Creating local element with ID: ${newId}, Name: ${file.name}`);
 
             if (file.type.startsWith('image/')) {
-                // Para imágenes, el cliente sigue enviando Base64. El servidor lo convertirá a URL de Cloudinary.
-                const img = new Image();
-                img.src = srcData;
-                img.onload = () => {
+                const wrapperDiv = document.createElement('div');
+                wrapperDiv.id = newId;
+                wrapperDiv.classList.add('element-wrapper');
+                wrapperDiv.style.minWidth = '50px';
+                wrapperDiv.style.minHeight = '30px';
+                wrapperDiv.style.zIndex = getNextHighestZIndex();
+                applyElementTransform(wrapperDiv, 0, 1); // Initial rotation 0, scale 1
+                wrapperDiv.style.opacity = '1';
+
+                const contentElement = document.createElement('img');
+                contentElement.src = srcData; // Use Base64 locally first
+                contentElement.alt = file.name;
+                contentElement.classList.add('element-content');
+                wrapperDiv.appendChild(contentElement);
+                
+                contentElement.onload = () => {
                     const defaultInitialSize = 200;
-                    let finalWidth = img.naturalWidth;
-                    let finalHeight = img.naturalHeight;
+                    let finalWidth = contentElement.naturalWidth;
+                    let finalHeight = contentElement.naturalHeight;
                     const aspectRatio = finalWidth / finalHeight;
 
                     if (finalWidth > defaultInitialSize || finalHeight > defaultInitialSize) {
@@ -1798,41 +1797,98 @@
                     const initialLeft = greenCanvasCenterX - (finalWidth / 2);
                     const initialTop = greenCanvasCenterY - (finalHeight / 2);
 
+                    wrapperDiv.style.width = `${finalWidth}px`;
+                    wrapperDiv.style.height = `${finalHeight}px`;
+                    wrapperDiv.style.left = `${initialLeft}px`;
+                    wrapperDiv.style.top = `${initialTop}px`;
+                    
+                    addHandles(wrapperDiv);
+                    mainCanvasWrapper.appendChild(wrapperDiv);
+                    allElements.set(wrapperDiv.id, wrapperDiv); // Add to local map
+
+                    // Store initial aspect ratio on the wrapper for resizing
+                    wrapperDiv.dataset.initialAspectRatio = aspectRatio;
+
+                    // Immediately update UI and select locally
+                    updateLayersList();
+                    updateFileCountDisplay();
+                    selectElement(wrapperDiv); 
+                    
+                    // Prepare and send data to server
                     elementState = {
                         ...elementState,
-                        left: `${initialLeft}px`,
-                        top: `${initialTop}px`,
-                        width: `${finalWidth}px`,
-                        height: `${finalHeight}px`,
-                        rotation: 0, // Inicia con 0 grados
-                        scale: 1, // Inicia con escala 1 (100%)
-                        zIndex: getNextHighestZIndex(),
+                        left: wrapperDiv.style.left,
+                        top: wrapperDiv.style.top,
+                        width: wrapperDiv.style.width,
+                        height: wrapperDiv.style.height,
+                        rotation: 0, // Store as number for consistency
+                        scale: 1, // Store as number for consistency
+                        zIndex: wrapperDiv.style.zIndex,
                         opacity: '1',
                         type: 'img',
-                        src: srcData, // Se envía Base64 al servidor inicialmente
+                        src: srcData, // Send Base64 to server for upload to Cloudinary
                         initialAspectRatio: aspectRatio
                     };
                     sendWebSocketMessage('elementAdd', { element: elementState });
                 };
-                // Si la imagen está en caché, onload podría no dispararse.
-                if (img.complete) {
-                    img.onload();
+                // If the image is already cached, onload might not fire.
+                // Handle this by manually triggering if complete.
+                if (contentElement.complete) {
+                    contentElement.onload();
                 }
 
             } else if (file.type.startsWith('audio/')) {
-                // Para audios, el cliente sigue enviando Base64. El servidor lo convertirá a URL de Cloudinary.
+                // No visual wrapper is created for audio. Audio element is managed directly.
+                const audioElement = document.createElement('audio');
+                audioElement.id = newId;
+                audioElement.src = srcData; // Use Base64 locally first
+                audioElement.volume = 0.5;
+                audioElement.currentTime = 0;
+                audioElement.dataset.lastVolume = 0.5;
+                audioElement.muted = isMutedGlobally;
+                audioElement.dataset.originalName = file.name;
+                audioElement.dataset.type = 'audio';
+
+                if (audioDuration !== null) {
+                    audioElement.duration = audioDuration; // Use provided duration if available
+                } else {
+                    // Fallback: listen for metadata if duration not provided immediately
+                    audioElement.addEventListener('loadedmetadata', () => {
+                        updateTimelineDisplay(audioElement);
+                        const updatedElementState = {
+                            ...elementState,
+                            duration: audioElement.duration,
+                            type: 'audio',
+                            src: srcData, // Still Base64 for sending to server
+                            volume: audioElement.volume,
+                            currentTime: audioElement.currentTime,
+                            paused: audioElement.paused,
+                            isPlaying: !audioElement.paused,
+                            lastVolume: audioElement.dataset.lastVolume
+                        };
+                        // Send an update message if duration changes after initial creation
+                        sendWebSocketMessage('elementUpdate', { element: updatedElementState });
+                    }, { once: true });
+                }
+
+                allElements.set(audioElement.id, audioElement); // Add to local map
+                addAudioItemToPlaylistUI(audioElement); // Add to playlist UI
+                updateFileCountDisplay();
+                selectAudioElement(audioElement); // Select the audio locally
+
+                // Prepare and send data to server
                 elementState = {
                     ...elementState,
                     type: 'audio',
-                    src: srcData, // Se envía Base64 al servidor inicialmente
-                    volume: 0.5,
-                    currentTime: 0,
-                    paused: true,
-                    isPlaying: false,
-                    duration: audioDuration,
-                    lastVolume: 0.5,
+                    src: srcData, // Send Base64 to server for upload to Cloudinary
+                    volume: audioElement.volume,
+                    currentTime: audioElement.currentTime,
+                    paused: audioElement.paused,
+                    isPlaying: !audioElement.paused,
+                    duration: audioElement.duration || audioDuration, // Send current duration or estimated
+                    lastVolume: audioElement.dataset.lastVolume,
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: '0', opacity: '1' // Añadir rotación y escala para consistencia, aunque no se usen en audios
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1 // Add visual properties for consistency, though not used by audio
                 };
                 sendWebSocketMessage('elementAdd', { element: elementState });
             }
@@ -1842,7 +1898,7 @@
         imageUpload.addEventListener('change', (event) => {
             if (event.target.files.length > 0) {
                 handleFile(event.target.files[0]);
-                event.target.value = '';
+                event.target.value = ''; // Clear input to allow re-uploading same file
             }
         });
 
@@ -1855,36 +1911,101 @@
 
             const textContent = textInput.value.trim() === '' ? 'New Text' : textInput.value;
             const newId = generateUniqueId();
+            // lastAddedElementId = newId; // No longer needed for spinner control
+
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.id = newId;
+            wrapperDiv.classList.add('element-wrapper', 'text-element-wrapper');
 
             const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
             const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
-            const initialLeft = greenCanvasCenterX - (100 / 2);
+            const initialLeft = greenCanvasCenterX - (100 / 2); // Initial arbitrary center for text
             const initialTop = greenCanvasCenterY - (50 / 2);
 
+            wrapperDiv.style.left = `${initialLeft}px`;
+            wrapperDiv.style.top = `${initialTop}px`;
+            wrapperDiv.style.minWidth = '50px';
+            wrapperDiv.style.minHeight = '30px';
+            wrapperDiv.style.zIndex = getNextHighestZIndex();
+            applyElementTransform(wrapperDiv, 0, 1); // Initial rotation 0, scale 1
+            wrapperDiv.style.opacity = '1';
+            wrapperDiv.style.width = 'auto'; // Will be adjusted by adjustTextElementWrapperSize
+            wrapperDiv.style.height = 'auto'; // Will be adjusted by adjustTextElementWrapperSize
+            wrapperDiv.dataset.originalName = 'Text Element';
+
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('element-content', 'text-content', 'text-lg');
+            textDiv.contentEditable = true;
+            textDiv.textContent = textContent;
+            textDiv.style.opacity = '1';
+            textDiv.spellcheck = false;
+
+            textDiv.style.color = textColorInput.value;
+            textDiv.style.webkitTextFillColor = textColorInput.value;
+            textDiv.style.fontSize = `${fontSizeRange.value}px`;
+
+            if (toggleTextBg.checked) {
+                textDiv.style.backgroundColor = textBgColorInput.value;
+            } else {
+                textDiv.style.backgroundColor = 'transparent';
+            }
+
+            if (toggleTextOutline.checked) {
+                const thickness = outlineThicknessRange.value;
+                const color = textOutlineColorInput.value;
+                textDiv.style.webkitTextStrokeWidth = `${thickness}px`;
+                textDiv.style.webkitTextStrokeColor = color;
+                textDiv.style.textShadow = generateTextShadowForOutline(thickness, color);
+            } else {
+                textDiv.style.webkitTextStrokeWidth = '0';
+                textDiv.style.webkitTextStrokeColor = 'transparent';
+                textDiv.style.textShadow = 'none';
+            }
+
+            if (boldTextBtn.classList.contains('active-style')) {
+                textDiv.classList.add('font-bold');
+            }
+            if (italicTextBtn.classList.contains('active-style')) {
+                textDiv.classList.add('italic');
+            }
+
+            wrapperDiv.appendChild(textDiv);
+            addHandles(wrapperDiv);
+            mainCanvasWrapper.appendChild(wrapperDiv);
+            allElements.set(wrapperDiv.id, wrapperDiv); // Add to local map
+            adjustTextElementWrapperSize(wrapperDiv);
+            textDiv.focus();
+
+            // Immediately update UI and select locally
+            updateLayersList();
+            updateFileCountDisplay();
+            selectElement(wrapperDiv); 
+
             const elementState = {
-                id: newId,
-                left: `${initialLeft}px`,
-                top: `${initialTop}px`,
-                width: 'auto', // Se ajustará dinámicamente en el cliente
-                height: 'auto', // Se ajustará dinámicamente en el cliente
-                rotation: 0, // Inicia con 0 grados
-                scale: 1, // Inicia con escala 1 (100%)
-                zIndex: getNextHighestZIndex(),
-                opacity: '1',
-                originalName: 'Text Element',
+                id: wrapperDiv.id,
+                left: wrapperDiv.style.left,
+                top: wrapperDiv.style.top,
+                width: wrapperDiv.style.width,
+                height: wrapperDiv.style.height,
+                rotation: 0, // Store as number
+                scale: 1, // Store as number
+                zIndex: wrapperDiv.style.zIndex,
+                opacity: textDiv.style.opacity,
+                originalName: wrapperDiv.dataset.originalName,
                 type: 'text',
-                textContent: textContent,
-                color: textColorInput.value,
-                backgroundColor: toggleTextBg.checked ? textBgColorInput.value : 'transparent',
-                fontSize: `${fontSizeRange.value}px`,
-                isBold: boldTextBtn.classList.contains('active-style'),
-                isItalic: italicTextBtn.classList.contains('active-style'),
-                outlineThickness: toggleTextOutline.checked ? `${outlineThicknessRange.value}px` : '0',
-                outlineColor: toggleTextOutline.checked ? textOutlineColorInput.value : 'transparent',
-                hasTextBackground: toggleTextBg.checked,
-                hasTextOutline: toggleTextOutline.checked && parseFloat(outlineThicknessRange.value) > 0
+                textContent: textDiv.textContent,
+                color: textDiv.style.color,
+                backgroundColor: textDiv.style.backgroundColor,
+                fontSize: textDiv.style.fontSize,
+                isBold: textDiv.classList.contains('font-bold'),
+                isItalic: textDiv.classList.contains('italic'),
+                outlineThickness: textDiv.style.webkitTextStrokeWidth,
+                outlineColor: textDiv.style.webkitTextStrokeColor,
+                hasTextBackground: (textDiv.style.backgroundColor !== 'transparent'),
+                hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0)
             };
             sendWebSocketMessage('elementAdd', { element: elementState });
+            // loadingSpinner.classList.remove('hidden'); // Spinner removed
         });
 
         textInput.addEventListener('input', () => {
@@ -1893,7 +2014,7 @@
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.textContent = textInput.value;
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    updateLayersList();
+                    updateLayersList(); // Update layer list name if text changed
 
                     if (!pendingUpdateAnimationFrame) {
                         pendingUpdateAnimationFrame = requestAnimationFrame(() => {
@@ -1926,7 +2047,7 @@
                     originalName: element.dataset.originalName,
                     publicId: element.dataset.publicId, // Incluir publicId
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: '0', opacity: '1' // Añadir rotación y escala para consistencia
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1 // Añadir rotación y escala para consistencia
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -2050,21 +2171,48 @@
                 if (!originalState) return;
 
                 const newId = generateUniqueId();
-                const clonedState = {
-                    ...originalState,
-                    id: newId,
-                    left: `${parseFloat(selectedElementWrapper.style.left) + 20}px`,
-                    top: `${parseFloat(selectedElementWrapper.style.top) + 20}px`,
-                    zIndex: getNextHighestZIndex(),
-                    rotation: originalState.rotation, // Mantener rotación
-                    scale: originalState.scale // Mantener escala
-                };
+                // lastAddedElementId = newId; // No longer needed for spinner control
 
-                // Si es una imagen o audio, el publicId se mantiene en la duplicación para que
-                // el servidor sepa que es una referencia al mismo archivo en Cloudinary
-                // y no necesite subirlo de nuevo.
-                // El servidor no creará un nuevo archivo en Cloudinary, pero sí guardará el nuevo elemento en Firestore.
+                // Create a deep copy of the original wrapper
+                const clonedWrapper = selectedElementWrapper.cloneNode(true);
+                clonedWrapper.id = newId;
+                clonedWrapper.style.left = `${parseFloat(selectedElementWrapper.style.left) + 20}px`;
+                clonedWrapper.style.top = `${parseFloat(selectedElementWrapper.style.top) + 20}px`;
+                clonedWrapper.style.zIndex = getNextHighestZIndex();
+                
+                // Ensure handles are hidden for the new clone until selected
+                clonedWrapper.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'none');
+                const cloneRotationHandle = clonedWrapper.querySelector('.rotation-handle');
+                if (cloneRotationHandle) cloneRotationHandle.style.display = 'none';
+                
+                clonedWrapper.classList.remove('selected'); // Ensure the copy is not initially selected
+
+                // Re-initialize contentEditable for duplicated text elements
+                const clonedContentElement = clonedWrapper.querySelector('.element-content');
+                if (clonedContentElement && clonedContentElement.classList.contains('text-content')) {
+                    clonedContentElement.contentEditable = true;
+                    adjustTextElementWrapperSize(clonedWrapper); // Re-adjust size for text elements
+                }
+
+                // If it's an image, ensure initialAspectRatio and publicId are copied
+                if (clonedWrapper.dataset.initialAspectRatio === undefined && originalState.initialAspectRatio) {
+                    clonedWrapper.dataset.initialAspectRatio = originalState.initialAspectRatio;
+                }
+                if (clonedWrapper.dataset.publicId === undefined && originalState.publicId) {
+                    clonedWrapper.dataset.publicId = originalState.publicId;
+                }
+                
+                mainCanvasWrapper.appendChild(clonedWrapper);
+                allElements.set(newId, clonedWrapper); // Add to local map
+
+                updateLayersList();
+                updateFileCountDisplay();
+                selectElement(clonedWrapper); // Select the new copy locally
+                
+                // Send the cloned element state to the server (src will be URL, not Base64)
+                const clonedState = getElementState(clonedWrapper);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
+                // loadingSpinner.classList.remove('hidden'); // Spinner removed
             }
         });
 
@@ -2147,13 +2295,8 @@
                 }
             } else {
                  textBgColorInput.disabled = !toggleTextBg.checked;
-                 if (toggleTextBg.checked) {
-                     textBgColorLabel.classList.remove('text-gray-600');
-                     textBgColorLabel.classList.add('text-gray-300');
-                 } else {
-                     textBgColorLabel.classList.add('text-gray-600');
-                     textBgColorLabel.classList.remove('text-gray-300');
-                 }
+                 textBgColorLabel.classList.toggle('text-gray-600', !toggleTextBg.checked);
+                 textBgColorLabel.classList.toggle('text-gray-300', toggleTextBg.checked);
             }
         });
 
@@ -2190,17 +2333,10 @@
             } else {
                 textOutlineColorInput.disabled = !toggleTextOutline.checked;
                 outlineThicknessRange.disabled = !toggleTextOutline.checked;
-                if (toggleTextOutline.checked) {
-                    textOutlineColorLabel.classList.remove('text-gray-600');
-                    textOutlineColorLabel.classList.add('text-gray-300');
-                    outlineThicknessLabel.classList.remove('text-gray-600');
-                    outlineThicknessLabel.classList.add('text-gray-300');
-                } else {
-                    textOutlineColorLabel.classList.add('text-gray-600');
-                    textOutlineColorLabel.classList.remove('text-gray-300');
-                    outlineThicknessLabel.classList.add('text-gray-600');
-                    outlineThicknessLabel.classList.remove('text-gray-300');
-                }
+                textOutlineColorLabel.classList.toggle('text-gray-600', !toggleTextOutline.checked);
+                textOutlineColorLabel.classList.toggle('text-gray-300', toggleTextOutline.checked);
+                outlineThicknessLabel.classList.toggle('text-gray-600', !toggleTextOutline.checked);
+                outlineThicknessLabel.classList.toggle('text-gray-300', toggleTextOutline.checked);
             }
         });
 
@@ -2308,7 +2444,7 @@
                 if (parseFloat(volumeRange.value) === 0) {
                     selectedAudioElement.muted = true;
                 } else {
-                    selectedAudioElement.muted = isMutedGlobally;
+                    selectedAudioElement.muted = isMutedGlobally; // Respect global mute state
                 }
                 volumeValueDisplay.textContent = `${Math.round(volumeRange.value * 100)}%`;
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
@@ -2326,8 +2462,8 @@
         bringToFrontBtn.addEventListener('click', () => {
             if (selectedElementWrapper) {
                 selectedElementWrapper.style.zIndex = getNextHighestZIndex();
-                updateLayersList();
-                selectElement(selectedElementWrapper);
+                updateLayersList(); // Update list to reflect z-index change
+                selectElement(selectedElementWrapper); // Re-select to update sidebar with correct z-index
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 const updatedElementsForReorder = Array.from(allElements.values())
                                                     .filter(el => el.classList && el.classList.contains('element-wrapper'))
@@ -2385,6 +2521,7 @@
                  e.stopPropagation();
             }
             else {
+                // If clicked outside any interactive element (wrapper, audio list, sidebar, zoom, modal), deselect all.
                 if (!target.closest('aside') && !target.closest('.zoom-controls') && !target.closest('.modal-overlay')) {
                     deselectAllElements();
                 }
@@ -2430,6 +2567,7 @@
                     let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
                     let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
 
+                    // Maintain aspect ratio while resizing images
                     if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
                         newWidth = potentialNewWidth;
                         newHeight = newWidth / originalImageAspectRatio;
@@ -2438,7 +2576,7 @@
                         newWidth = newHeight * originalImageAspectRatio;
                     }
 
-                    newWidth = Math.max(20, newWidth);
+                    newWidth = Math.max(20, newWidth); // Minimum size
                     newHeight = Math.max(20, newHeight);
 
                     if (activeHandle.includes('left')) {
@@ -2449,6 +2587,7 @@
                     }
 
                 } else if (contentElement && contentElement.classList.contains('text-content')) {
+                    // Resizing for text elements, consider minimum content size
                     switch (activeHandle) {
                         case 'top-left':
                             newWidth = initialWidth - dx;
@@ -2513,6 +2652,7 @@
                     const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
                     const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
 
+                    // Adjust position based on clamping
                     const widthDiff = clampedWidth - newWidth;
                     const heightDiff = clampedHeight - newHeight;
                     if (activeHandle.startsWith('top-')) {
@@ -2525,7 +2665,7 @@
                     newHeight = clampedHeight;
                 }
 
-                newWidth = Math.max(20, newWidth);
+                newWidth = Math.max(20, newWidth); // Ensure minimum size for all resizable elements
                 newHeight = Math.max(20, newHeight);
 
                 selectedElementWrapper.style.width = `${newWidth}px`;
@@ -2533,6 +2673,7 @@
                 selectedElementWrapper.style.left = `${newLeft}px`;
                 selectedElementWrapper.style.top = `${newTop}px`;
 
+                // Update initial values for next mousemove event
                 initialMouseX = currentMouseXOnUnscaledWrapper;
                 initialMouseY = currentMouseYOnUnscaledWrapper;
                 initialWidth = newWidth;
@@ -2555,10 +2696,10 @@
                 const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
                 const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
                 let newRotation = initialElementRotation + angleDiff;
-                newRotation = (newRotation % 360 + 360) % 360;
+                newRotation = (newRotation % 360 + 360) % 360; // Normalize to 0-360
 
-                const currentScale = getElementState(selectedElementWrapper).scale; // Obtener la escala actual
-                applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Aplicar rotación y escala
+                const currentScale = getElementState(selectedElementWrapper).scale; // Get current scale
+                applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Apply rotation and scale
                 rotationRange.value = newRotation;
                 rotationValue.textContent = `${Math.round(newRotation)}°`;
 
@@ -2596,7 +2737,7 @@
             const touchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
             const touchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
-            if (e.touches.length === 1) {
+            if (e.touches.length === 1) { // Single touch for drag, resize, rotate
                 if (clickedWrapper) {
                     if (target.classList.contains('resize-handle')) {
                         e.preventDefault();
@@ -2632,7 +2773,7 @@
                     initialLeft = clickedWrapper.offsetLeft;
                     initialTop = clickedWrapper.offsetTop;
                 } else if (clickedAudioListItem) {
-                    e.stopPropagation();
+                     e.stopPropagation();
                 } else {
                     if (!target.closest('aside') && !target.closest('.zoom-controls') && !target.closest('.modal-overlay')) {
                         deselectAllElements();
@@ -2646,7 +2787,7 @@
             const currentTouchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
-            if (e.touches.length === 1) {
+            if (e.touches.length === 1) { // Single touch
                 if (isDragging && selectedElementWrapper) {
                     e.preventDefault();
                     const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
@@ -2681,6 +2822,7 @@
                         let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
                         let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
 
+                        // Maintain aspect ratio while resizing images
                         if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
                             newWidth = potentialNewWidth;
                             newHeight = newWidth / originalImageAspectRatio;
@@ -2700,6 +2842,7 @@
                         }
 
                     } else if (contentElement && contentElement.classList.contains('text-content')) {
+                        // Resizing for text elements
                         switch (activeHandle) {
                             case 'top-left':
                                 newWidth = initialWidth - dx;
@@ -2764,6 +2907,7 @@
                         const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
                         const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
 
+                        // Adjust position based on clamping
                         const widthDiff = clampedWidth - newWidth;
                         const heightDiff = clampedHeight - newHeight;
                         if (activeHandle.startsWith('top-')) {
@@ -2808,8 +2952,8 @@
                     let newRotation = initialElementRotation + angleDiff;
                     newRotation = (newRotation % 360 + 360) % 360;
 
-                    const currentScale = getElementState(selectedElementWrapper).scale; // Obtener la escala actual
-                    applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Aplicar rotación y escala
+                    const currentScale = getElementState(selectedElementWrapper).scale; // Get current scale
+                    applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Apply rotation and scale
                     rotationRange.value = newRotation;
                     rotationValue.textContent = `${Math.round(newRotation)}°`;
 
@@ -2849,23 +2993,26 @@
                 document.getElementById(`tab-content-${tabId}`).classList.add('active');
 
                 if (tabId === 'audio') {
+                    // When switching to audio tab, deselect visual elements and select first audio if available.
                     if (selectedElementWrapper) {
                         console.log("[TAB_CHANGE] Deselecting visual element when switching to audio tab.");
                         deselectAllElements();
-                        const firstAudio = Array.from(allElements.values()).find(el => el.tagName === 'AUDIO');
-                        if (firstAudio) {
-                            console.log(`[TAB_CHANGE] Auto-selecting first audio: ${firstAudio.id}`);
-                            selectAudioElement(firstAudio);
-                        }
+                    }
+                    const firstAudio = Array.from(allElements.values()).find(el => el.tagName === 'AUDIO');
+                    if (firstAudio) {
+                        console.log(`[TAB_CHANGE] Auto-selecting first audio: ${firstAudio.id}`);
+                        selectAudioElement(firstAudio);
                     }
                 } else {
+                    // When switching away from audio tab, deselect audio controls.
                     if (selectedAudioElement) {
                         console.log("[TAB_CHANGE] Deselecting audio element when switching away from audio tab.");
                         deselectAudioControls();
-                        if (tabId === 'properties' && selectedElementWrapper) {
-                            console.log("[TAB_CHANGE] Re-selecting previously selected visual element.");
-                            selectElement(selectedElementWrapper);
-                        }
+                    }
+                    // If returning to properties and a visual element was previously selected, re-select it.
+                    if (tabId === 'properties' && selectedElementWrapper) {
+                        console.log("[TAB_CHANGE] Re-selecting previously selected visual element.");
+                        selectElement(selectedElementWrapper);
                     }
                 }
             });
@@ -2902,8 +3049,8 @@
                 draggedLayer.style.opacity = '1';
                 draggedLayer = null;
 
-                let maxZ = getNextHighestZIndex() - 1;
-                if (maxZ < 100) {
+                let maxZ = getNextHighestZIndex() - 1; // Get the current highest Z-index
+                if (maxZ < 100) { // Ensure a minimum starting Z-index for layers if none exist
                     maxZ = 100;
                 }
 
@@ -2913,15 +3060,15 @@
                     if (layerItem.dataset.id) {
                         const elementWrapper = allElements.get(layerItem.dataset.id);
                         if (elementWrapper) {
-                            const newZIndex = maxZ - index;
+                            const newZIndex = maxZ - index; // Assign new Z-index based on new order (top of list = higher Z-index)
                             elementWrapper.style.zIndex = newZIndex;
                             updatedElementsForReorder.push({ id: elementWrapper.id, zIndex: newZIndex });
                         }
                     }
                 });
 
-                updateLayersList();
-                sendWebSocketMessage('reorderLayers', { elements: updatedElementsForReorder });
+                updateLayersList(); // Refresh the display of layers
+                sendWebSocketMessage('reorderLayers', { elements: updatedElementsForReorder }); // Send updates to server
             }
         });
 
