@@ -493,7 +493,7 @@
                     </button>
                 </div>
             </div>
-            <div class="mb-6">
+            <div class="mb-4">
                 <label for="rotationRange" class="block text-sm font-medium text-gray-300 mb-2">Rotación</label>
                 <div class="flex items-center space-x-2">
                     <input type="range" id="rotationRange" min="0" max="360" step="1" value="0" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
@@ -505,6 +505,20 @@
                     </button>
                 </div>
             </div>
+            <!-- Nueva barra de tamaño -->
+            <div class="mb-6">
+                <label for="sizeRange" class="block text-sm font-medium text-gray-300 mb-2">Tamaño</label>
+                <div class="flex items-center space-x-2">
+                    <input type="range" id="sizeRange" min="0.25" max="4.0" step="0.05" value="1.0" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                    <span id="sizeValue" class="text-xs text-gray-400 w-10 text-right">100%</span>
+                    <button id="resetSizeBtn" class="reset-button" title="Reiniciar Tamaño" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Fin de nueva barra de tamaño -->
             <button id="duplicateElementBtn" disabled class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-3 disabled:opacity-50 disabled:cursor-not-allowed">
                 Duplicar elemento
             </button>
@@ -637,6 +651,9 @@
         const opacityValue = document.getElementById('opacityValue');
         const rotationRange = document.getElementById('rotationRange');
         const rotationValue = document.getElementById('rotationValue');
+        const sizeRange = document.getElementById('sizeRange');
+        const sizeValue = document.getElementById('sizeValue');
+        const resetSizeBtn = document.getElementById('resetSizeBtn');
         const duplicateElementBtn = document.getElementById('duplicateElementBtn');
         const deleteElementBtn = document.getElementById('deleteElementBtn');
         const layersList = document.getElementById('layersList');
@@ -696,43 +713,6 @@
         let reconnectInterval;
         let pendingUpdateAnimationFrame = null;
 
-        let myUserId = 'user-' + Math.random().toString(36).substr(2, 9);
-        let myUserColor = getRandomColor();
-        const userCursors = new Map();
-        let lastCursorSendTime = 0;
-        const cursorThrottleTime = 50;
-
-        function getRandomColor() {
-            const letters = '0123456789ABCDEF';
-            let color = '#';
-            for (let i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * 16)];
-            }
-            return color;
-        }
-
-        function createUserCursor(userId, userName, userColor) {
-            let cursorDiv = document.createElement('div');
-            cursorDiv.id = `cursor-${userId}`;
-            cursorDiv.classList.add('absolute', 'w-4', 'h-4', 'rounded-full', 'shadow-lg');
-            cursorDiv.style.backgroundColor = userColor;
-            cursorDiv.style.pointerEvents = 'none';
-            cursorDiv.style.zIndex = '9999';
-            cursorDiv.style.transition = 'transform 0.1s linear';
-
-            let nameSpan = document.createElement('span');
-            nameSpan.textContent = userName;
-            nameSpan.classList.add('absolute', 'whitespace-nowrap', 'text-xs', 'font-bold', 'text-white', 'bg-gray-800', 'px-1', 'py-0.5', 'rounded-sm');
-            nameSpan.style.bottom = '100%';
-            nameSpan.style.left = '50%';
-            nameSpan.style.transform = 'translateX(-50%)';
-            cursorDiv.appendChild(nameSpan);
-
-            mainCanvasWrapper.appendChild(cursorDiv);
-            userCursors.set(userId, cursorDiv);
-            return cursorDiv;
-        }
-
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 console.log('WebSocket already connected.');
@@ -748,19 +728,16 @@
                     clearInterval(reconnectInterval);
                     reconnectInterval = null;
                 }
-                sendWebSocketMessage('userConnect', { userId: myUserId, userName: `Usuario ${myUserId.slice(-4)}`, userColor: myUserColor });
             };
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
+                console.log('[WS_MESSAGE_RECEIVED]', message);
                 if (message.type === 'initialState') {
                     allElements.clear();
                     mainCanvasWrapper.querySelectorAll('.element-wrapper').forEach(el => el.remove());
                     audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
                     selectedAudioElement = null;
-
-                    userCursors.forEach(cursor => cursor.remove());
-                    userCursors.clear();
 
                     message.elements.forEach(data => {
                         if (data.type === 'audio') {
@@ -769,19 +746,6 @@
                             createElementFromData(data);
                         }
                     });
-                    if (message.cursors) {
-                        message.cursors.forEach(cursorData => {
-                            if (cursorData.userId !== myUserId) {
-                                let cursor = userCursors.get(cursorData.userId);
-                                if (!cursor) {
-                                    console.warn(`Cursor for user ${cursorData.userId} not found, creating a placeholder.`);
-                                    cursor = createUserCursor(cursorData.userId, `Usuario ${cursorData.userId.slice(-4)}`, getRandomColor());
-                                }
-                                cursor.style.left = `${cursorData.x}px`;
-                                cursor.style.top = `${cursorData.y}px`;
-                            }
-                        });
-                    }
 
                     updateLayersList();
                     updateAudioPlaylistDisplay();
@@ -790,11 +754,23 @@
                 } else if (message.type === 'elementAdd') {
                     if (message.element.type === 'audio') {
                         createAudioElementAndAddToPlaylist(message.element);
-                    } else {
+                        // Force switch to audio tab and select the new audio
+                        document.querySelector('.tab-button[data-tab="audio"]').click(); // Simulate click to switch tab
+                        const newAudioElement = allElements.get(message.element.id);
+                        if (newAudioElement) {
+                            selectAudioElement(newAudioElement); // Select the new audio in the list
+                        }
+                    } else { // It's a visual element (img or text)
                         createElementFromData(message.element);
+                        const newVisualElement = allElements.get(message.element.id);
+                        if (newVisualElement && message.element.type === 'text') {
+                            // For text, select immediately. For images, onload will handle selection.
+                            selectElement(newVisualElement);
+                        }
                     }
                     updateLayersList();
                     updateAudioPlaylistDisplay();
+                    updateFileCountDisplay(); // Asegurarse de que el contador de archivos se actualice también
                 } else if (message.type === 'elementUpdate') {
                     updateElementFromData(message.element);
                     updateLayersList();
@@ -812,31 +788,8 @@
                         }
                     });
                     updateLayersList();
-                } else if (message.type === 'cursorMove') {
-                    if (message.userId !== myUserId) {
-                        let cursor = userCursors.get(message.userId);
-                        if (!cursor) {
-                            console.warn(`Cursor for user ${message.userId} not found, creating a placeholder.`);
-                            cursor = createUserCursor(message.userId, `Usuario ${message.userId.slice(-4)}`, getRandomColor());
-                        }
-                        cursor.style.left = `${message.x}px`;
-                        cursor.style.top = `${message.y}px`;
-                    }
-                } else if (message.type === 'userConnect') {
-                    if (message.userId !== myUserId) {
-                        if (!userCursors.has(message.userId)) {
-                            createUserCursor(message.userId, message.userName, message.userColor);
-                            console.log(`[WS] User connected: ${message.userName} (${message.userId})`);
-                        }
-                    }
-                } else if (message.type === 'userDisconnect') {
-                    let cursor = userCursors.get(message.userId);
-                    if (cursor) {
-                        cursor.remove();
-                        userCursors.delete(message.userId);
-                        console.log(`[WS] User disconnected: ${message.userId}`);
-                    }
-                } else if (message.type === 'ping') {
+                } 
+                else if (message.type === 'ping') {
                 }
             };
 
@@ -846,11 +799,6 @@
                 if (!reconnectInterval) {
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
-                if (myUserId) {
-                    sendWebSocketMessage('userDisconnect', { userId: myUserId });
-                }
-                userCursors.forEach(cursor => cursor.remove());
-                userCursors.clear();
             };
 
             ws.onerror = (err) => {
@@ -994,6 +942,11 @@
             }
         }
 
+        // Helper function to apply rotation and scale
+        function applyElementTransform(element, rotation, scale) {
+            element.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+        }
+
         function createElementFromData(data) {
             if (data.type === 'audio') {
                 createAudioElementAndAddToPlaylist(data);
@@ -1017,8 +970,10 @@
 
             wrapperDiv.style.left = data.left;
             wrapperDiv.style.top = data.top;
-            wrapperDiv.style.transform = data.rotation;
             wrapperDiv.style.zIndex = data.zIndex;
+            // Apply both rotation and scale from data
+            applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
+
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
             }
@@ -1038,6 +993,19 @@
                 
                 wrapperDiv.style.width = data.width;
                 wrapperDiv.style.height = data.height;
+
+                // IMPORTANT: Attach onload listener for images here to handle selection after load
+                contentElement.onload = () => {
+                    // Check if this newly loaded image is the one the user just added/selected
+                    // This will ensure the UI updates with proper dimensions after image is rendered
+                    if (selectedElementWrapper && selectedElementWrapper.id === wrapperDiv.id) {
+                         selectElement(wrapperDiv); // Re-select to update sidebar with correct properties
+                    }
+                };
+                // Handle cases where the image might already be in browser cache
+                if (contentElement.complete) {
+                    contentElement.onload();
+                }
 
             } else if (data.type === 'text') {
                 contentElement = document.createElement('div');
@@ -1075,6 +1043,8 @@
             addHandles(wrapperDiv);
             mainCanvasWrapper.appendChild(wrapperDiv);
             allElements.set(wrapperDiv.id, wrapperDiv);
+
+            // Removed `wrapperDiv.offsetHeight;` as onload handles image rendering, and text adjustment is below.
 
             if (data.type === 'text') {
                 adjustTextElementWrapperSize(wrapperDiv);
@@ -1124,7 +1094,8 @@
 
                 allElements.set(audioElement.id, audioElement);
                 console.log(`[AUDIO_CREATE] Audio element ${audioElement.id} added to allElements. Map size: ${allElements.size}`);
-                addAudioItemToPlaylistUI(audioElement);
+                // La adición a la UI se manejará centralmente por updateAudioPlaylistDisplay()
+                // addAudioItemToPlaylistUI(audioElement);
             } else {
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} already exists, updating properties.`);
                 audioElement.src = data.src;
@@ -1139,6 +1110,7 @@
 
                 if (audioElement.paused || Math.abs(audioElement.currentTime - data.currentTime) > 0.1) {
                     audioElement.currentTime = data.currentTime;
+                    console.log(`[UPDATE] Setting currentTime for ${data.id} to ${data.currentTime}`);
                 }
 
                 if (data.isPlaying && audioElement.paused && !isMutedGlobally) {
@@ -1151,7 +1123,7 @@
             if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
                 selectAudioElement(audioElement);
             }
-            updateAudioPlaylistDisplay();
+            // updateAudioPlaylistDisplay();
         }
 
         function addAudioItemToPlaylistUI(audioElement) {
@@ -1181,11 +1153,10 @@
 
                 const deleteAudioBtn = document.createElement('button');
                 deleteAudioBtn.classList.add('text-white', 'p-1', 'rounded-full', 'bg-red-600', 'hover:bg-red-700', 'transition-colors');
+                // Icono de "X" simple
                 deleteAudioBtn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
-                        <path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.519c.55.11.92.646.8 1.185A8.923 8.923 0 0 1 18 9.75a9.006 9.006 0 0 1-5.972 5.917c-.477.108-.948.2-1.419.292a.75.75 0 0 0-.583.75v.007c.087.756.345 1.5.779 2.179.412.63.923 1.227 1.529 1.776l.006.007A6.75 6.75 0 0 1 20.25 22.5H21v-1.5h-.75A5.25 5.25 0 0 0 14.5 17.75l-.004-.002a7.61 7.61 0 0 0-1.2-.26C11.396 17.29 10 16.5 10 16v-1.25a.75.75 0 0 0-.583-.75h-1.625l-.224-.047a.75.75 0 0 1-.515-.72v-.507l-.23-.047A.75.75 0 0 1 6 13.5v-.5l-.23-.047A.75.75 0 0 1 4.5 11.5v-.5l-.224-.047A.75.75 0 0 1 3 10v-.5l-.23-.047A.75.75 0 0 1 1.5 8.5v-.5l-.224-.047A.75.75 0 0 1 0 7V6.5a.75.75 0 0 1 .583-.75l.224-.047A.75.75 0 0 1 1.5 5.5V5a.75.75 0 0 1 .583-.75l.224-.047a.75.75 0 0 1 .515-.72V.5L4.5 0H6a.75.75 0 0 1 .583-.75L6.807-.047a.75.75 0 0 1 .515-.72v-1.25a.75.75 0 0 1 .583-.75L8.35-.047a.75.75 0 0 1 .515-.72V-2.5a.75.75 0 0 1 .583-.75L9.9-.047a.75.75 0 0 1 .515-.72V-5.5a.75.75 0 0 1 .583-.75L11.2-.047a.75.75 0 0 1 .515-.72V-8.5a.75.75 0 0 1 .583-.75L12.55-.047a.75.75 0 0 1 .515-.72V-11.5a.75.75 0 0 1 .583-.75L13.9-.047a.75.75 0 0 1 .515-.72V-14.5a.75.75 0 0 1 .583-.75L15.25-.047a.75.75 0 0 1 .515-.72V-17.5a.75.75 0 0 1 .583-.75L16.6-.047a.75.75 0 0 1 .515-.72V-20.5a.75.75 0 0 1 .583-.75L17.95-.047a.75.75 0 0 1 .515-.72V-23.5a.75.75 0 0 1 .583-.75L19.3-.047a.75.75 0 0 1 .515-.72V-26.5a.75.75 0 0 1 .583-.75L20.65-.047a.75.75 0 0 1 .515-.72V-29.5a.75.75 0 0 1 .583-.75L22-.047a.75.75 0 0 1 .515-.72V-32.5a.75.75 0 0 1 .583-.75L23.35-.047a.75.75 0 0 1 .515-.72V-35.5a.75.75 0 0 1 .583-.75L24.7-.047a.75.75 0 0 1 .515-.72V-38.5a.75.75 0 0 1 .583-.75L26.05-.047a.75.75 0 0 1 .515-.72V-41.5a.75.75 0 0 1 .75-.75H27a.75.75 0 0 1 .75.75V4.478Z" clip-rule="evenodd" />
-                        <path fill-rule="evenodd" d="M12.924 2.182a.75.75 0 0 0-.916-.27l-5.696 2.5a.75.75 0 0 0-.422.673v2.893c-.63.076-1.25.197-1.849.369a6.002 6.002 0 0 0-3.326 1.758.75.75 0 0 0 0 1.06l.88.88a.75.75 0 0 0 1.06 0 4.5 4.5 0 0 1 6.364-6.364.75.75 0 0 0 0-1.06l-.88-.88a.75.75 0 0 0-1.06 0Z" clip-rule="evenodd" />
-                        <path fill-rule="evenodd" d="M18.788 16.143a.75.75 0 0 0 .916.27l5.696-2.5a.75.75 0 0 0 .422-.673V10.02a6.002 6.002 0 0 0-3.326-1.758.75.75 0 0 0 0 1.06l.88.88a.75.75 0 0 0 1.06 0 4.5 4.5 0 0 1 6.364 6.364.75.75 0 0 0 0 1.06l-.88.88a.75.75 0 0 0-1.06 0Z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
                     </svg>
                 `;
                 controlsDiv.appendChild(deleteAudioBtn);
@@ -1211,6 +1182,9 @@
         function updateElementFromData(data) {
             console.log(`[UPDATE] Received update for element ID: ${data.id}, type: ${data.type}`);
             const element = allElements.get(data.id);
+            // Declare contentElement here
+            let contentElement = null; 
+
             if (!element) {
                 console.warn(`[UPDATE] Element ${data.id} not found for update, attempting to create.`);
                 if (data.type === 'audio') {
@@ -1240,95 +1214,67 @@
                     console.log(`[UPDATE] Playing audio ${data.id}`);
                     element.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
                 } else if (!data.isPlaying && !element.paused) {
-                    console.log(`[UPDATE] Pausing audio ${data.id}`);
                     element.pause();
                 }
+            } else { // Visual element update
+                element.style.left = data.left;
+                element.style.top = data.top;
+                element.style.width = data.width;
+                element.style.height = data.height;
+                // Apply both rotation and scale from data
+                applyElementTransform(element, data.rotation || 0, data.scale || 1);
+                element.style.zIndex = data.zIndex;
+                
+                // Assign contentElement only for visual elements
+                contentElement = element.querySelector('.element-content');
+                if (contentElement) {
+                    contentElement.style.opacity = data.opacity;
+                    if (data.type === 'text') {
+                        contentElement.textContent = data.textContent;
+                        contentElement.style.color = data.color;
+                        contentElement.style.backgroundColor = data.backgroundColor;
+                        contentElement.style.fontSize = data.fontSize;
+                        
+                        if (data.isBold) contentElement.classList.add('font-bold');
+                        else contentElement.classList.remove('font-bold');
+                        
+                        if (data.isItalic) contentElement.classList.add('italic');
+                        else contentElement.classList.remove('italic');
 
-                if (selectedAudioElement && selectedAudioElement.id === data.id) {
-                    console.log(`[UPDATE] Updating UI for selected audio ${data.id}`);
-                    volumeRange.value = element.volume;
-                    volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
-                    updatePlayPauseButton(element.paused);
-                    updateTimelineDisplay(element);
-                    currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
-                }
-                updateAudioPlaylistDisplay();
-            } else {
-                console.log(`[UPDATE] Updating properties of VISUAL element: ${data.id}`);
-                const elementWrapper = element;
-                elementWrapper.style.left = data.left;
-                elementWrapper.style.top = data.top;
-                elementWrapper.style.width = data.width;
-                elementWrapper.style.height = data.height;
-                elementWrapper.style.transform = data.rotation;
-                elementWrapper.style.zIndex = data.zIndex;
-                elementWrapper.dataset.originalName = data.originalName || '';
-                if (data.initialAspectRatio) { // Actualiza el aspect ratio si viene en la data
-                    elementWrapper.dataset.initialAspectRatio = data.initialAspectRatio;
-                }
-                if (data.publicId) { // Actualiza el publicId si viene en la data
-                    elementWrapper.dataset.publicId = data.publicId;
-                }
-
-
-                const contentElement = elementWrapper.querySelector('img.element-content, div.text-content.element-content');
-                if (!contentElement) {
-                    console.error(`Content element not found inside wrapper ${data.id} for update.`);
-                    return;
-                }
-                contentElement.style.opacity = data.opacity;
-
-                if (data.type === 'img') {
-                    contentElement.src = data.src; // Actualiza la URL de la imagen
-                } else if (data.type === 'text') {
-                    contentElement.textContent = data.textContent;
-                    contentElement.style.color = data.color;
-                    contentElement.style.backgroundColor = data.backgroundColor;
-                    contentElement.style.fontSize = data.fontSize;
-
-                    if (data.isBold) contentElement.classList.add('font-bold');
-                    else contentElement.classList.remove('font-bold');
-
-                    if (data.isItalic) contentElement.classList.add('italic');
-                    else contentElement.classList.remove('italic');
-
-                    if (data.hasTextOutline && parseFloat(data.outlineThickness) > 0) {
-                        contentElement.style.webkitTextStrokeWidth = data.outlineThickness;
-                        contentElement.style.webkitTextStrokeColor = data.outlineColor;
-                        contentElement.style.textShadow = generateTextShadowForOutline(parseFloat(data.outlineThickness), data.outlineColor);
-                    } else {
-                        contentElement.style.webkitTextStrokeWidth = '0';
-                        contentElement.style.webkitTextStrokeColor = 'transparent';
-                        contentElement.style.textShadow = 'none';
+                        if (data.hasTextOutline && parseFloat(data.outlineThickness) > 0) {
+                            contentElement.style.webkitTextStrokeWidth = data.outlineThickness;
+                            contentElement.style.webkitTextStrokeColor = data.outlineColor;
+                            contentElement.style.textShadow = generateTextShadowForOutline(parseFloat(data.outlineThickness), data.outlineColor);
+                        } else {
+                            contentElement.style.webkitTextStrokeWidth = '0';
+                            contentElement.style.webkitTextStrokeColor = 'transparent';
+                            contentElement.style.textShadow = 'none';
+                        }
+                        adjustTextElementWrapperSize(element); // Re-adjust text element size on update
                     }
-                    adjustTextElementWrapperSize(elementWrapper);
-
-                    if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
-                        textInput.value = data.textContent;
-                        textColorInput.value = data.color;
-                        textBgColorInput.value = data.backgroundColor;
-                        toggleTextBg.checked = data.hasTextBackground;
-                        const event = new Event('change');
-                        toggleTextBg.dispatchEvent(event);
-                        toggleTextOutline.checked = data.hasTextOutline;
-                        textOutlineColorInput.value = data.outlineColor;
-                        outlineThicknessRange.value = parseFloat(data.outlineThickness);
-                        outlineThicknessValue.textContent = `${outlineThicknessRange.value}px`;
-                        toggleTextOutline.dispatchEvent(event);
-                        fontSizeRange.value = parseFloat(data.fontSize);
-                        fontSizeValue.textContent = `${fontSizeRange.value}px`;
-
-                        if (data.isBold) boldTextBtn.classList.add('active-style');
-                        else boldTextBtn.classList.remove('active-style');
-
-                        if (data.isItalic) italicTextBtn.classList.add('active-style');
-                        else italicTextBtn.classList.remove('active-style');
-                    }
-                }
-                if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
-                    selectElement(elementWrapper);
                 }
             }
+
+            if (selectedAudioElement && selectedAudioElement.id === data.id) {
+                console.log(`[UPDATE] Updating UI for selected audio ${data.id}`);
+                volumeRange.value = element.volume;
+                volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
+                updatePlayPauseButton(element.paused);
+                updateTimelineDisplay(element);
+                currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
+            } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
+                // Ensure contentElement is defined before accessing its properties
+                if (contentElement) { 
+                    console.log(`[UPDATE] Updating UI for selected visual element ${data.id}`);
+                    opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
+                    opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
+                    rotationRange.value = data.rotation;
+                    rotationValue.textContent = `${Math.round(data.rotation)}°`;
+                    sizeRange.value = data.scale;
+                    sizeValue.textContent = `${Math.round(data.scale * 100)}%`;
+                }
+            }
+            updateAudioPlaylistDisplay();
         }
 
         function deleteElementFromData(elementId) {
@@ -1428,12 +1374,16 @@
             opacityValue.textContent = '100%';
             rotationRange.value = 0;
             rotationValue.textContent = '0°';
+            sizeRange.value = 1; // Restablecer tamaño
+            sizeValue.textContent = '100%'; // Restablecer tamaño
             opacityRange.disabled = true;
             rotationRange.disabled = true;
+            sizeRange.disabled = true; // Deshabilitar tamaño
             duplicateElementBtn.disabled = true;
             deleteElementBtn.disabled = true;
             resetOpacityBtn.disabled = true;
             resetRotationBtn.disabled = true;
+            resetSizeBtn.disabled = true; // Deshabilitar reset de tamaño
             bringToFrontBtn.disabled = true;
 
             textInput.disabled = false;
@@ -1457,10 +1407,10 @@
             fontSizeRange.disabled = false;
 
             textBgColorInput.disabled = !toggleTextBg.checked;
-            textOutlineColorInput.disabled = !toggleTextOutline.checked;
-            outlineThicknessRange.disabled = !toggleTextOutline.checked;
             textBgColorLabel.classList.add('text-gray-600');
             textBgColorLabel.classList.remove('text-gray-300');
+            textOutlineColorInput.disabled = !toggleTextOutline.checked;
+            outlineThicknessRange.disabled = !toggleTextOutline.checked;
             textOutlineColorLabel.classList.add('text-gray-600');
             textOutlineColorLabel.classList.remove('text-gray-300');
             outlineThicknessLabel.classList.add('text-gray-600');
@@ -1505,6 +1455,9 @@
 
                 selectedElementWrapper.querySelector('.rotation-handle').style.display = 'block';
                 rotationRange.disabled = false;
+                sizeRange.disabled = false; // Habilitar tamaño
+                resetSizeBtn.disabled = false; // Habilitar reset de tamaño
+
                 if (!contentElement.classList.contains('text-content')) {
                     selectedElementWrapper.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'block');
                 } else {
@@ -1520,8 +1473,13 @@
 
                 opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
-                rotationRange.value = getRotation(selectedElementWrapper) || 0;
-                rotationValue.textContent = `${Math.round(rotationRange.value)}°`;
+                
+                const elementState = getElementState(selectedElementWrapper); // Get current rotation and scale
+                rotationRange.value = elementState.rotation;
+                rotationValue.textContent = `${Math.round(elementState.rotation)}°`;
+                sizeRange.value = elementState.scale;
+                sizeValue.textContent = `${Math.round(elementState.scale * 100)}%`;
+
 
                 if (contentElement.classList.contains('text-content')) {
                     textInput.disabled = false;
@@ -1628,10 +1586,12 @@
 
             opacityRange.disabled = true;
             rotationRange.disabled = true;
+            sizeRange.disabled = true; // Deshabilitar tamaño
             duplicateElementBtn.disabled = true;
             bringToFrontBtn.disabled = true;
             resetOpacityBtn.disabled = true;
             resetRotationBtn.disabled = true;
+            resetSizeBtn.disabled = true; // Deshabilitar reset de tamaño
 
             textInput.disabled = true;
             textColorInput.disabled = true;
@@ -1663,12 +1623,6 @@
             currentAudioNameDisplay.textContent = audioElement.dataset.originalName || 'Audio Seleccionado';
         }
 
-
-        function getRotation(element) {
-            const transform = element.style.transform;
-            const match = transform.match(/rotate\(([-?\d.]+)deg\)/);
-            return match ? parseFloat(match[1]) : 0;
-        }
 
         function addHandles(elementWrapper) {
             const handles = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
@@ -1850,7 +1804,8 @@
                         top: `${initialTop}px`,
                         width: `${finalWidth}px`,
                         height: `${finalHeight}px`,
-                        rotation: 'rotate(0deg)',
+                        rotation: 0, // Inicia con 0 grados
+                        scale: 1, // Inicia con escala 1 (100%)
                         zIndex: getNextHighestZIndex(),
                         opacity: '1',
                         type: 'img',
@@ -1877,7 +1832,7 @@
                     duration: audioDuration,
                     lastVolume: 0.5,
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 'rotate(0deg)', zIndex: '0', opacity: '1'
+                    rotation: 0, scale: 1, zIndex: '0', opacity: '1' // Añadir rotación y escala para consistencia, aunque no se usen en audios
                 };
                 sendWebSocketMessage('elementAdd', { element: elementState });
             }
@@ -1912,7 +1867,8 @@
                 top: `${initialTop}px`,
                 width: 'auto', // Se ajustará dinámicamente en el cliente
                 height: 'auto', // Se ajustará dinámicamente en el cliente
-                rotation: 'rotate(0deg)',
+                rotation: 0, // Inicia con 0 grados
+                scale: 1, // Inicia con escala 1 (100%)
                 zIndex: getNextHighestZIndex(),
                 opacity: '1',
                 originalName: 'Text Element',
@@ -1970,7 +1926,7 @@
                     originalName: element.dataset.originalName,
                     publicId: element.dataset.publicId, // Incluir publicId
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 'rotate(0deg)', zIndex: '0', opacity: '1'
+                    rotation: 0, scale: 1, zIndex: '0', opacity: '1' // Añadir rotación y escala para consistencia
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -1986,11 +1942,27 @@
                     top: element.style.top,
                     width: element.style.width,
                     height: element.style.height,
-                    rotation: element.style.transform,
                     zIndex: element.style.zIndex,
                     opacity: contentElement.style.opacity,
                     originalName: element.dataset.originalName || ''
                 };
+
+                const transform = element.style.transform;
+                let currentRotation = 0;
+                let currentScale = 1;
+
+                const rotationMatch = transform.match(/rotate\(([-?\d.]+)deg\)/);
+                if (rotationMatch) {
+                    currentRotation = parseFloat(rotationMatch[1]);
+                }
+
+                const scaleMatch = transform.match(/scale\(([-?\d.]+)\)/);
+                if (scaleMatch) {
+                    currentScale = parseFloat(scaleMatch[1]);
+                }
+
+                state.rotation = currentRotation; // Store as number
+                state.scale = currentScale; // Store as number
 
                 if (contentElement.tagName === 'IMG') {
                     state.type = 'img';
@@ -2034,8 +2006,10 @@
 
         rotationRange.addEventListener('input', () => {
             if (selectedElementWrapper) {
-                selectedElementWrapper.style.transform = `rotate(${rotationRange.value}deg)`;
-                rotationValue.textContent = `${Math.round(rotationRange.value)}°`;
+                const currentScale = getElementState(selectedElementWrapper).scale;
+                const newRotation = parseFloat(rotationRange.value);
+                applyElementTransform(selectedElementWrapper, newRotation, currentScale);
+                rotationValue.textContent = `${Math.round(newRotation)}°`;
                  if (!pendingUpdateAnimationFrame) {
                     pendingUpdateAnimationFrame = requestAnimationFrame(() => {
                         sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2044,6 +2018,21 @@
                 }
             }
         });
+
+        sizeRange.addEventListener('input', () => {
+            if (selectedElementWrapper) {
+                const currentRotation = getElementState(selectedElementWrapper).rotation;
+                const newScale = parseFloat(sizeRange.value);
+                applyElementTransform(selectedElementWrapper, currentRotation, newScale);
+                sizeValue.textContent = `${Math.round(newScale * 100)}%`;
+                if (!pendingUpdateAnimationFrame) {
+                    pendingUpdateAnimationFrame = requestAnimationFrame(() => {
+                        sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                        pendingUpdateAnimationFrame = null;
+                        });
+                    }
+                }
+            });
 
         duplicateElementBtn.addEventListener('click', () => {
             console.log("[DUPLICATE] Duplicate button clicked.");
@@ -2066,13 +2055,15 @@
                     id: newId,
                     left: `${parseFloat(selectedElementWrapper.style.left) + 20}px`,
                     top: `${parseFloat(selectedElementWrapper.style.top) + 20}px`,
-                    zIndex: getNextHighestZIndex()
+                    zIndex: getNextHighestZIndex(),
+                    rotation: originalState.rotation, // Mantener rotación
+                    scale: originalState.scale // Mantener escala
                 };
 
                 // Si es una imagen o audio, el publicId se mantiene en la duplicación para que
                 // el servidor sepa que es una referencia al mismo archivo en Cloudinary
                 // y no necesite subirlo de nuevo.
-                // El servidor no creará un nuevo archivo en Cloudinary, pero sí guardará el nuevo elemento en Firestore
+                // El servidor no creará un nuevo archivo en Cloudinary, pero sí guardará el nuevo elemento en Firestore.
                 sendWebSocketMessage('elementAdd', { element: clonedState });
             }
         });
@@ -2269,12 +2260,24 @@
 
         resetRotationBtn.addEventListener('click', () => {
             if (selectedElementWrapper) {
-                selectedElementWrapper.style.transform = 'rotate(0deg)';
+                const currentScale = getElementState(selectedElementWrapper).scale;
+                applyElementTransform(selectedElementWrapper, 0, currentScale); // Reiniciar solo rotación
                 rotationRange.value = 0;
                 rotationValue.textContent = '0°';
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
             }
         });
+
+        resetSizeBtn.addEventListener('click', () => {
+            if (selectedElementWrapper) {
+                const currentRotation = getElementState(selectedElementWrapper).rotation;
+                applyElementTransform(selectedElementWrapper, currentRotation, 1); // Reiniciar solo escala
+                sizeRange.value = 1;
+                sizeValue.textContent = '100%';
+                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+            }
+        });
+
 
         playPauseBtn.addEventListener('click', () => {
             console.log("[PLAY_PAUSE] Play/Pause button clicked.");
@@ -2367,7 +2370,7 @@
                     const centerX = rect.left + rect.width / 2;
                     const centerY = rect.top + rect.height / 2;
                     initialRotationAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
-                    initialElementRotation = getRotation(selectedElementWrapper);
+                    initialElementRotation = getElementState(selectedElementWrapper).rotation; // Obtener la rotación del estado
                     return;
                 }
 
@@ -2392,16 +2395,6 @@
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentMouseXOnUnscaledWrapper = (e.clientX - wrapperRect.left) / currentZoom;
             const currentMouseYOnUnscaledWrapper = (e.clientY - wrapperRect.top) / currentZoom;
-
-            const now = Date.now();
-            if (now - lastCursorSendTime > cursorThrottleTime) {
-                sendWebSocketMessage('cursorMove', {
-                    userId: myUserId,
-                    x: currentMouseXOnUnscaledWrapper,
-                    y: currentMouseYOnUnscaledWrapper
-                });
-                lastCursorSendTime = now;
-            }
 
             if (isDragging && selectedElementWrapper) {
                 e.preventDefault();
@@ -2564,7 +2557,8 @@
                 let newRotation = initialElementRotation + angleDiff;
                 newRotation = (newRotation % 360 + 360) % 360;
 
-                selectedElementWrapper.style.transform = `rotate(${newRotation}deg)`;
+                const currentScale = getElementState(selectedElementWrapper).scale; // Obtener la escala actual
+                applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Aplicar rotación y escala
                 rotationRange.value = newRotation;
                 rotationValue.textContent = `${Math.round(newRotation)}°`;
 
@@ -2626,7 +2620,7 @@
                         const centerX = rect.left + rect.width / 2;
                         const centerY = rect.top + rect.height / 2;
                         initialRotationAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX);
-                        initialElementRotation = getRotation(selectedElementWrapper);
+                        initialElementRotation = getElementState(selectedElementWrapper).rotation; // Obtener la rotación del estado
                         return;
                     }
 
@@ -2651,16 +2645,6 @@
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentTouchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
-
-            const now = Date.now();
-            if (now - lastCursorSendTime > cursorThrottleTime) {
-                sendWebSocketMessage('cursorMove', {
-                    userId: myUserId,
-                    x: currentTouchXOnUnscaledWrapper,
-                    y: currentTouchYOnUnscaledWrapper
-                });
-                lastCursorSendTime = now;
-            }
 
             if (e.touches.length === 1) {
                 if (isDragging && selectedElementWrapper) {
@@ -2824,7 +2808,8 @@
                     let newRotation = initialElementRotation + angleDiff;
                     newRotation = (newRotation % 360 + 360) % 360;
 
-                    selectedElementWrapper.style.transform = `rotate(${newRotation}deg)`;
+                    const currentScale = getElementState(selectedElementWrapper).scale; // Obtener la escala actual
+                    applyElementTransform(selectedElementWrapper, newRotation, currentScale); // Aplicar rotación y escala
                     rotationRange.value = newRotation;
                     rotationValue.textContent = `${Math.round(newRotation)}°`;
 
