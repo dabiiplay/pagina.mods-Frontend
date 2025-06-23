@@ -201,7 +201,8 @@
             width: 100%;
             height: 100%;
         }
-        @media (max-width: 768px) {
+        /* Media query block for mobile adjustments - Reverted */
+        /* @media (max-width: 768px) {
             body {
                 flex-direction: column;
             }
@@ -215,7 +216,7 @@
                 width: 100%;
                 margin: 0.5rem;
             }
-        }
+        } */
         input[type="range"].w-full {
             -webkit-appearance: none;
             appearance: none;
@@ -259,26 +260,31 @@
             justify-content: center;
             margin: 1rem;
             overflow: hidden;
+            /* width: 100%; Reverted for specific sizes */
         }
         #mainCanvasWrapper {
             display: flex;
             position: relative;
-            width: 1496px;
-            height: 720px;
+            width: 1496px; /* Reverted to fixed size */
+            height: 720px; /* Reverted to fixed size */
             transform-origin: center center;
             flex-shrink: 0;
+            /* max-width: 1496px; Max width for larger screens - Reverted */
+            /* max-height: 720px; Max height for larger screens - Reverted */
+            /* aspect-ratio: 1496 / 720; Maintain aspect ratio - Reverted */
+            /* margin: auto; Center the canvas within editorCanvas - Reverted, uses margin: 1rem on editorCanvas */
         }
         #leftSidebar {
-            width: 200px;
-            height: 720px;
+            width: 200px; /* Reverted to fixed size */
+            height: 720px; /* Reverted to fixed size */
             background-color: rgba(16, 185, 129, 0.5);
             border: 2px dashed #4ade80;
             margin-right: 1rem;
             flex-shrink: 0;
         }
         #innerCanvas {
-            width: 1280px;
-            height: 720px;
+            width: 1280px; /* Reverted to fixed size */
+            height: 720px; /* Reverted to fixed size */
             background-color: transparent;
             border: 2px dashed white;
             flex-shrink: 0;
@@ -437,7 +443,7 @@
             </div>
         </div>
     </div>
-    <aside class="w-80 bg-gray-900 shadow-lg flex flex-col sidebar-scroll text-gray-200 md:w-80 pt-4 z-20">
+    <aside class="w-80 bg-gray-900 shadow-lg flex flex-col sidebar-scroll text-gray-200 pt-4 z-20">
         <div class="border-b pb-2 border-gray-700 px-4">
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
             <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center">
@@ -685,7 +691,9 @@
         const WS_URL = 'wss://pagina-mods-websocket-server.onrender.com';
         let ws;
         let reconnectInterval;
-        let pendingUpdateAnimationFrame = null;
+        let pendingUpdateAnimationFrame = null; // For WebSocket updates
+        let pendingDOMUpdateAnimationFrame = null; // For direct DOM updates
+
 
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -735,17 +743,19 @@
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new (from another client), creating it.`);
                         if (message.element.type === 'audio') {
                             createAudioElementAndAddToPlaylist(message.element);
-                            document.querySelector('.tab-button[data-tab="audio"]').click();
-                            const newAudioElement = allElements.get(message.element.id);
-                            if (newAudioElement) {
-                                selectAudioElement(newAudioElement);
-                            }
+                            // Do NOT select audio when added from another client automatically
+                            // document.querySelector('.tab-button[data-tab="audio"]').click();
+                            // const newAudioElement = allElements.get(message.element.id);
+                            // if (newAudioElement) {
+                            //     selectAudioElement(newAudioElement);
+                            // }
                         } else {
                             createElementFromData(message.element);
-                            const newVisualElement = allElements.get(message.element.id);
-                            if (newVisualElement) {
-                                selectElement(newVisualElement);
-                            }
+                            // Do NOT select visual element when added from another client automatically
+                            // const newVisualElement = allElements.get(message.element.id);
+                            // if (newVisualElement) {
+                            //     selectElement(newVisualElement);
+                            // }
                         }
                     }
                     updateLayersList();
@@ -976,9 +986,10 @@
 
                 contentElement.onload = () => {
                     console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
-                    if (selectedElementWrapper && selectedElementWrapper.id === wrapperDiv.id) {
-                         selectElement(wrapperDiv); 
-                    }
+                    // Do NOT select the element when loaded from data (e.g., initial state from server)
+                    // if (selectedElementWrapper && selectedElementWrapper.id === wrapperDiv.id) {
+                    //      selectElement(wrapperDiv); 
+                    // }
                 };
                 if (contentElement.complete) {
                     contentElement.onload();
@@ -1092,9 +1103,10 @@
                 }
             }
 
-            if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-                selectAudioElement(audioElement);
-            }
+            // Do NOT select the audio element automatically when creating/updating from data
+            // if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
+            //     selectAudioElement(audioElement);
+            // }
         }
 
         function addAudioItemToPlaylistUI(audioElement) {
@@ -1185,39 +1197,45 @@
                     element.pause();
                 }
             } else {
-                element.style.left = data.left;
-                element.style.top = data.top;
-                element.style.width = data.width;
-                element.style.height = data.height;
-                applyElementTransform(element, data.rotation || 0, data.scale || 1);
-                element.style.zIndex = data.zIndex;
-                
-                contentElement = element.querySelector('.element-content');
-                if (contentElement) {
-                    contentElement.style.opacity = data.opacity;
-                    if (data.type === 'text') {
-                        contentElement.textContent = data.textContent;
-                        contentElement.style.color = data.color;
-                        contentElement.style.backgroundColor = data.backgroundColor;
-                        contentElement.style.fontSize = data.fontSize;
+                // Optimize DOM updates for visual elements using requestAnimationFrame
+                if (!pendingDOMUpdateAnimationFrame) {
+                    pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
+                        element.style.left = data.left;
+                        element.style.top = data.top;
+                        element.style.width = data.width;
+                        element.style.height = data.height;
+                        applyElementTransform(element, data.rotation || 0, data.scale || 1);
+                        element.style.zIndex = data.zIndex;
                         
-                        if (data.isBold) contentElement.classList.add('font-bold');
-                        else contentElement.classList.remove('font-bold');
-                        
-                        if (data.isItalic) contentElement.classList.add('italic');
-                        else contentElement.classList.remove('italic');
+                        contentElement = element.querySelector('.element-content');
+                        if (contentElement) {
+                            contentElement.style.opacity = data.opacity;
+                            if (data.type === 'text') {
+                                contentElement.textContent = data.textContent;
+                                contentElement.style.color = data.color;
+                                contentElement.style.backgroundColor = data.backgroundColor;
+                                contentElement.style.fontSize = data.fontSize;
+                                
+                                if (data.isBold) contentElement.classList.add('font-bold');
+                                else contentElement.classList.remove('font-bold');
+                                
+                                if (data.isItalic) contentElement.classList.add('italic');
+                                else contentElement.classList.remove('italic');
 
-                        if (data.hasTextOutline && parseFloat(data.outlineThickness) > 0) {
-                            contentElement.style.webkitTextStrokeWidth = data.outlineThickness;
-                            contentElement.style.webkitTextStrokeColor = data.outlineColor;
-                            contentElement.style.textShadow = generateTextShadowForOutline(parseFloat(data.outlineThickness), data.outlineColor);
-                        } else {
-                            contentElement.style.webkitTextStrokeWidth = '0';
-                            contentElement.style.webkitTextStrokeColor = 'transparent';
-                            contentElement.style.textShadow = 'none';
+                                if (data.hasTextOutline && parseFloat(data.outlineThickness) > 0) {
+                                    contentElement.style.webkitTextStrokeWidth = data.outlineThickness;
+                                    contentElement.style.webkitTextStrokeColor = data.outlineColor;
+                                    contentElement.style.textShadow = generateTextShadowForOutline(parseFloat(data.outlineThickness), data.outlineColor);
+                                } else {
+                                    contentElement.style.webkitTextStrokeWidth = '0';
+                                    contentElement.style.webkitTextStrokeColor = 'transparent';
+                                    contentElement.style.textShadow = 'none';
+                                }
+                                adjustTextElementWrapperSize(element);
+                            }
                         }
-                        adjustTextElementWrapperSize(element);
-                    }
+                        pendingDOMUpdateAnimationFrame = null;
+                    });
                 }
             }
 
@@ -1792,7 +1810,7 @@
 
                     updateLayersList();
                     updateFileCountDisplay();
-                    selectElement(wrapperDiv); 
+                    // selectElement(wrapperDiv); // REMOVED: Do not auto-select element on upload
                     
                     elementState = {
                         ...elementState,
@@ -1848,7 +1866,7 @@
                 allElements.set(audioElement.id, audioElement);
                 addAudioItemToPlaylistUI(audioElement);
                 updateFileCountDisplay();
-                selectAudioElement(audioElement);
+                // selectAudioElement(audioElement); // REMOVED: Do not auto-select audio on upload
 
                 elementState = {
                     ...elementState,
@@ -1950,7 +1968,7 @@
 
             updateLayersList();
             updateFileCountDisplay();
-            selectElement(wrapperDiv); 
+            // selectElement(wrapperDiv); // REMOVED: Do not auto-select element on add text
 
             const elementState = {
                 id: wrapperDiv.id,
@@ -2174,7 +2192,7 @@
 
                 updateLayersList();
                 updateFileCountDisplay();
-                selectElement(clonedWrapper);
+                selectElement(clonedWrapper); // Keep selection on duplication for immediate manipulation
                 
                 const clonedState = getElementState(clonedWrapper);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
@@ -2492,181 +2510,179 @@
             }
         });
 
+        let dragUpdateQueued = false;
         document.addEventListener('mousemove', (e) => {
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentMouseXOnUnscaledWrapper = (e.clientX - wrapperRect.left) / currentZoom;
             const currentMouseYOnUnscaledWrapper = (e.clientY - wrapperRect.top) / currentZoom;
 
-            if (isDragging && selectedElementWrapper) {
+            if ((isDragging || isResizing || isRotating) && selectedElementWrapper) {
                 e.preventDefault();
-                const dx = currentMouseXOnUnscaledWrapper - initialMouseX;
-                const dy = currentMouseYOnUnscaledWrapper - initialMouseY;
 
-                let newLeft = initialLeft + dx;
-                let newTop = initialTop + dy;
+                if (!pendingDOMUpdateAnimationFrame) {
+                    pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
+                        if (isDragging) {
+                            const dx = currentMouseXOnUnscaledWrapper - initialMouseX;
+                            const dy = currentMouseYOnUnscaledWrapper - initialMouseY;
 
-                selectedElementWrapper.style.left = `${newLeft}px`;
-                selectedElementWrapper.style.top = `${newTop}px`;
+                            let newLeft = initialLeft + dx;
+                            let newTop = initialTop + dy;
 
-                if (!pendingUpdateAnimationFrame) {
-                    pendingUpdateAnimationFrame = requestAnimationFrame(() => {
-                        sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                        pendingUpdateAnimationFrame = null;
+                            selectedElementWrapper.style.left = `${newLeft}px`;
+                            selectedElementWrapper.style.top = `${newTop}px`;
+
+                        } else if (isResizing) {
+                            const dx = currentMouseXOnUnscaledWrapper - initialMouseX;
+                            const dy = currentMouseYOnUnscaledWrapper - initialMouseY;
+
+                            let newWidth = initialWidth;
+                            let newHeight = initialHeight;
+                            let newLeft = initialLeft;
+                            let newTop = initialTop;
+
+                            const contentElement = selectedElementWrapper.querySelector('.element-content');
+                            if (contentElement && (contentElement.tagName === 'IMG')) {
+                                const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
+
+                                let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
+                                let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
+
+                                if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
+                                    newWidth = potentialNewWidth;
+                                    newHeight = newWidth / originalImageAspectRatio;
+                                } else {
+                                    newHeight = potentialNewHeight;
+                                    newWidth = newHeight * originalImageAspectRatio;
+                                }
+
+                                newWidth = Math.max(20, newWidth);
+                                newHeight = Math.max(20, newHeight);
+
+                                if (activeHandle.includes('left')) {
+                                    newLeft = initialLeft + initialWidth - newWidth;
+                                }
+                                if (activeHandle.includes('top')) {
+                                    newTop = initialTop + initialHeight - newHeight;
+                                }
+
+                            } else if (contentElement && contentElement.classList.contains('text-content')) {
+                                switch (activeHandle) {
+                                    case 'top-left':
+                                        newWidth = initialWidth - dx;
+                                        newHeight = initialHeight - dy;
+                                        newLeft = initialLeft + dx;
+                                        newTop = initialTop + dy;
+                                        break;
+                                    case 'top-right':
+                                        newWidth = initialWidth + dx;
+                                        newHeight = initialHeight - dy;
+                                        newTop = initialTop + dy;
+                                        break;
+                                    case 'bottom-left':
+                                        newWidth = initialWidth - dx;
+                                        newHeight = initialHeight + dy;
+                                        newLeft = initialLeft + dx;
+                                        break;
+                                    case 'bottom-right':
+                                        newWidth = initialWidth + dx;
+                                        newHeight = initialHeight + dy;
+                                        break;
+                                }
+
+                                const textElement = contentElement;
+                                const tempDiv = document.createElement('div');
+                                tempDiv.style.position = 'absolute';
+                                tempDiv.style.visibility = 'hidden';
+                                tempDiv.style.whiteSpace = 'pre-wrap';
+                                tempDiv.style.wordBreak = 'break-word';
+                                tempDiv.style.boxSizing = 'border-box';
+                                tempDiv.style.fontSize = window.getComputedStyle(textElement).fontSize;
+                                tempDiv.style.fontWeight = window.getComputedStyle(textElement).fontWeight;
+                                tempDiv.style.fontStyle = window.getComputedStyle(textElement).fontStyle;
+                                tempDiv.style.fontFamily = window.getComputedStyle(textElement).fontFamily;
+                                tempDiv.style.lineHeight = '1';
+                                tempDiv.style.textAlign = 'center';
+                                tempDiv.style.display = 'flex';
+                                tempDiv.style.alignItems = 'center';
+                                tempDiv.style.justifyContent = 'center';
+
+                                const outlineThickness = parseFloat(textElement.style.webkitTextStrokeWidth) || 0;
+                                const outlineColor = textElement.style.webkitTextStrokeColor || '#000000';
+                                if (outlineThickness > 0) {
+                                    tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`;
+                                    tempDiv.style.webkitTextStrokeColor = outlineColor;
+                                    tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor);
+                                } else {
+                                    tempDiv.style.webkitTextStrokeWidth = '0';
+                                    tempDiv.style.webkitTextStrokeColor = 'transparent';
+                                    tempDiv.style.textShadow = 'none';
+                                }
+
+                                tempDiv.textContent = textElement.textContent;
+                                document.body.appendChild(tempDiv);
+                                const rawTextRect = tempDiv.getBoundingClientRect();
+                                const minContentWidth = rawTextRect.width;
+                                const minContentHeight = rawTextRect.height;
+                                document.body.removeChild(tempDiv);
+
+                                const wrapperPaddingHorizontal = 25;
+                                const wrapperPaddingVertical = 10;
+                                const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
+                                const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
+
+                                const widthDiff = clampedWidth - newWidth;
+                                const heightDiff = clampedHeight - newHeight;
+                                if (activeHandle.startsWith('top-')) {
+                                    newTop -= heightDiff;
+                                }
+                                if (activeHandle.endsWith('-left')) {
+                                    newLeft -= widthDiff;
+                                }
+                                newWidth = clampedWidth;
+                                newHeight = clampedHeight;
+                            }
+
+                            newWidth = Math.max(20, newWidth);
+                            newHeight = Math.max(20, newHeight);
+
+                            selectedElementWrapper.style.width = `${newWidth}px`;
+                            selectedElementWrapper.style.height = `${newHeight}px`;
+                            selectedElementWrapper.style.left = `${newLeft}px`;
+                            selectedElementWrapper.style.top = `${newTop}px`;
+
+                            initialMouseX = currentMouseXOnUnscaledWrapper;
+                            initialMouseY = currentMouseYOnUnscaledWrapper;
+                            initialWidth = newWidth;
+                            initialHeight = newHeight;
+                            initialLeft = newLeft;
+                            initialTop = newTop;
+                        } else if (isRotating) {
+                            const rect = selectedElementWrapper.getBoundingClientRect();
+                            const centerX = rect.left + rect.width / 2;
+                            const centerY = rect.top + rect.height / 2;
+
+                            const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+                            const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
+                            let newRotation = initialElementRotation + angleDiff;
+                            newRotation = (newRotation % 360 + 360) % 360;
+
+                            const currentScale = getElementState(selectedElementWrapper).scale;
+                            applyElementTransform(selectedElementWrapper, newRotation, currentScale);
+                            rotationRange.value = newRotation;
+                            rotationValue.textContent = `${Math.round(newRotation)}°`;
+                        }
+                        pendingDOMUpdateAnimationFrame = null; // Reset for next frame
                     });
                 }
-            } else if (isResizing && selectedElementWrapper) {
-                e.preventDefault();
-                const dx = currentMouseXOnUnscaledWrapper - initialMouseX;
-                const dy = currentMouseYOnUnscaledWrapper - initialMouseY;
 
-                let newWidth = initialWidth;
-                let newHeight = initialHeight;
-                let newLeft = initialLeft;
-                let newTop = initialTop;
-
-                const contentElement = selectedElementWrapper.querySelector('.element-content');
-                if (contentElement && (contentElement.tagName === 'IMG')) {
-                    const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
-
-                    let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
-                    let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
-
-                    if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
-                        newWidth = potentialNewWidth;
-                        newHeight = newWidth / originalImageAspectRatio;
-                    } else {
-                        newHeight = potentialNewHeight;
-                        newWidth = newHeight * originalImageAspectRatio;
-                    }
-
-                    newWidth = Math.max(20, newWidth);
-                    newHeight = Math.max(20, newHeight);
-
-                    if (activeHandle.includes('left')) {
-                        newLeft = initialLeft + initialWidth - newWidth;
-                    }
-                    if (activeHandle.includes('top')) {
-                        newTop = initialTop + initialHeight - newHeight;
-                    }
-
-                } else if (contentElement && contentElement.classList.contains('text-content')) {
-                    switch (activeHandle) {
-                        case 'top-left':
-                            newWidth = initialWidth - dx;
-                            newHeight = initialHeight - dy;
-                            newLeft = initialLeft + dx;
-                            newTop = initialTop + dy;
-                            break;
-                        case 'top-right':
-                            newWidth = initialWidth + dx;
-                            newHeight = initialHeight - dy;
-                            newTop = initialTop + dy;
-                            break;
-                        case 'bottom-left':
-                            newWidth = initialWidth - dx;
-                            newHeight = initialHeight + dy;
-                            newLeft = initialLeft + dx;
-                            break;
-                        case 'bottom-right':
-                            newWidth = initialWidth + dx;
-                            newHeight = initialHeight + dy;
-                            break;
-                    }
-
-                    const textElement = contentElement;
-                    const tempDiv = document.createElement('div');
-                    tempDiv.style.position = 'absolute';
-                    tempDiv.style.visibility = 'hidden';
-                    tempDiv.style.whiteSpace = 'pre-wrap';
-                    tempDiv.style.wordBreak = 'break-word';
-                    tempDiv.style.boxSizing = 'border-box';
-                    tempDiv.style.fontSize = window.getComputedStyle(textElement).fontSize;
-                    tempDiv.style.fontWeight = window.getComputedStyle(textElement).fontWeight;
-                    tempDiv.style.fontStyle = window.getComputedStyle(textElement).fontStyle;
-                    tempDiv.style.fontFamily = window.getComputedStyle(textElement).fontFamily;
-                    tempDiv.style.lineHeight = '1';
-                    tempDiv.style.textAlign = 'center';
-                    tempDiv.style.display = 'flex';
-                    tempDiv.style.alignItems = 'center';
-                    tempDiv.style.justifyContent = 'center';
-
-                    const outlineThickness = parseFloat(textElement.style.webkitTextStrokeWidth) || 0;
-                    const outlineColor = textElement.style.webkitTextStrokeColor || '#000000';
-                    if (outlineThickness > 0) {
-                        tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`;
-                        tempDiv.style.webkitTextStrokeColor = outlineColor;
-                        tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor);
-                    } else {
-                        tempDiv.style.webkitTextStrokeWidth = '0';
-                        tempDiv.style.webkitTextStrokeColor = 'transparent';
-                        tempDiv.style.textShadow = 'none';
-                    }
-
-                    tempDiv.textContent = textElement.textContent;
-                    document.body.appendChild(tempDiv);
-                    const rawTextRect = tempDiv.getBoundingClientRect();
-                    const minContentWidth = rawTextRect.width;
-                    const minContentHeight = rawTextRect.height;
-                    document.body.removeChild(tempDiv);
-
-                    const wrapperPaddingHorizontal = 25;
-                    const wrapperPaddingVertical = 10;
-                    const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
-                    const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
-
-                    const widthDiff = clampedWidth - newWidth;
-                    const heightDiff = clampedHeight - newHeight;
-                    if (activeHandle.startsWith('top-')) {
-                        newTop -= heightDiff;
-                    }
-                    if (activeHandle.endsWith('-left')) {
-                        newLeft -= widthDiff;
-                    }
-                    newWidth = clampedWidth;
-                    newHeight = clampedHeight;
-                }
-
-                newWidth = Math.max(20, newWidth);
-                newHeight = Math.max(20, newHeight);
-
-                selectedElementWrapper.style.width = `${newWidth}px`;
-                selectedElementWrapper.style.height = `${newHeight}px`;
-                selectedElementWrapper.style.left = `${newLeft}px`;
-                selectedElementWrapper.style.top = `${newTop}px`;
-
-                initialMouseX = currentMouseXOnUnscaledWrapper;
-                initialMouseY = currentMouseYOnUnscaledWrapper;
-                initialWidth = newWidth;
-                initialHeight = newHeight;
-                initialLeft = newLeft;
-                initialTop = newTop;
-
-                if (!pendingUpdateAnimationFrame) {
-                    pendingUpdateAnimationFrame = requestAnimationFrame(() => {
-                        sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                        pendingUpdateAnimationFrame = null;
-                    });
-                }
-            } else if (isRotating && selectedElementWrapper) {
-                e.preventDefault();
-                const rect = selectedElementWrapper.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-
-                const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
-                const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
-                let newRotation = initialElementRotation + angleDiff;
-                newRotation = (newRotation % 360 + 360) % 360;
-
-                const currentScale = getElementState(selectedElementWrapper).scale;
-                applyElementTransform(selectedElementWrapper, newRotation, currentScale);
-                rotationRange.value = newRotation;
-                rotationValue.textContent = `${Math.round(newRotation)}°`;
-
-                if (!pendingUpdateAnimationFrame) {
-                    pendingUpdateAnimationFrame = requestAnimationFrame(() => {
-                        sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                        pendingUpdateAnimationFrame = null;
+                // Send WebSocket update at a lower frequency to optimize network usage
+                if (!dragUpdateQueued) {
+                    dragUpdateQueued = true;
+                    requestAnimationFrame(() => {
+                        if (selectedElementWrapper) {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                        }
+                        dragUpdateQueued = false;
                     });
                 }
             }
@@ -2674,6 +2690,11 @@
 
         document.addEventListener('mouseup', () => {
             if (isDragging || isResizing || isRotating) {
+                // Ensure final state is sent and applied after drag/resize/rotate ends
+                if (pendingDOMUpdateAnimationFrame) {
+                    cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
+                    pendingDOMUpdateAnimationFrame = null;
+                }
                 if (pendingUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingUpdateAnimationFrame);
                     pendingUpdateAnimationFrame = null;
@@ -2686,6 +2707,7 @@
             isResizing = false;
             isRotating = false;
             activeHandle = '';
+            dragUpdateQueued = false; // Reset the flag
         });
 
         document.addEventListener('touchstart', (e) => {
@@ -2742,182 +2764,179 @@
             }
         });
 
+        let touchDragUpdateQueued = false;
         document.addEventListener('touchmove', (e) => {
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentTouchXOnUnscaledWrapper = (e.touches[0].clientX - wrapperRect.left) / currentZoom;
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
             if (e.touches.length === 1) {
-                if (isDragging && selectedElementWrapper) {
+                if ((isDragging || isResizing || isRotating) && selectedElementWrapper) {
                     e.preventDefault();
-                    const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
-                    const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
 
-                    let newLeft = initialLeft + dx;
-                    let newTop = initialTop + dy;
+                    if (!pendingDOMUpdateAnimationFrame) {
+                        pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
+                            if (isDragging) {
+                                const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
+                                const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
 
-                    selectedElementWrapper.style.left = `${newLeft}px`;
-                    selectedElementWrapper.style.top = `${newTop}px`;
+                                let newLeft = initialLeft + dx;
+                                let newTop = initialTop + dy;
 
-                    if (!pendingUpdateAnimationFrame) {
-                        pendingUpdateAnimationFrame = requestAnimationFrame(() => {
-                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                            pendingUpdateAnimationFrame = null;
+                                selectedElementWrapper.style.left = `${newLeft}px`;
+                                selectedElementWrapper.style.top = `${newTop}px`;
+                            } else if (isResizing) {
+                                const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
+                                const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
+
+                                let newWidth = initialWidth;
+                                let newHeight = initialHeight;
+                                let newLeft = initialLeft;
+                                let newTop = initialTop;
+
+                                const contentElement = selectedElementWrapper.querySelector('.element-content');
+                                if (contentElement && (contentElement.tagName === 'IMG')) {
+                                    const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
+
+                                    let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
+                                    let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
+
+                                    if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
+                                        newWidth = potentialNewWidth;
+                                        newHeight = newWidth / originalImageAspectRatio;
+                                    } else {
+                                        newHeight = potentialNewHeight;
+                                        newWidth = newHeight * originalImageAspectRatio;
+                                    }
+
+                                    newWidth = Math.max(20, newWidth);
+                                    newHeight = Math.max(20, newHeight);
+
+                                    if (activeHandle.includes('left')) {
+                                        newLeft = initialLeft + initialWidth - newWidth;
+                                    }
+                                    if (activeHandle.includes('top')) {
+                                        newTop = initialTop + initialHeight - newHeight;
+                                    }
+
+                                } else if (contentElement && contentElement.classList.contains('text-content')) {
+                                    switch (activeHandle) {
+                                        case 'top-left':
+                                            newWidth = initialWidth - dx;
+                                            newHeight = initialHeight - dy;
+                                            newLeft = initialLeft + dx;
+                                            newTop = initialTop + dy;
+                                            break;
+                                        case 'top-right':
+                                            newWidth = initialWidth + dx;
+                                            newHeight = initialHeight - dy;
+                                            newTop = initialTop + dy;
+                                            break;
+                                        case 'bottom-left':
+                                            newWidth = initialWidth - dx;
+                                            newHeight = initialHeight + dy;
+                                            newLeft = initialLeft + dx;
+                                            break;
+                                        case 'bottom-right':
+                                            newWidth = initialWidth + dx;
+                                            newHeight = initialHeight + dy;
+                                            break;
+                                    }
+
+                                    const textElement = contentElement;
+                                    const tempDiv = document.createElement('div');
+                                    tempDiv.style.position = 'absolute';
+                                    tempDiv.style.visibility = 'hidden';
+                                    tempDiv.style.whiteSpace = 'pre-wrap';
+                                    tempDiv.style.wordBreak = 'break-word';
+                                    tempDiv.style.boxSizing = 'border-box';
+                                    tempDiv.style.fontSize = window.getComputedStyle(textElement).fontSize;
+                                    tempDiv.style.fontWeight = window.getComputedStyle(textElement).fontWeight;
+                                    tempDiv.style.fontStyle = window.getComputedStyle(textElement).fontStyle;
+                                    tempDiv.style.fontFamily = window.getComputedStyle(textElement).fontFamily;
+                                    tempDiv.style.lineHeight = '1';
+                                    tempDiv.style.textAlign = 'center';
+                                    tempDiv.style.display = 'flex';
+                                    tempDiv.style.alignItems = 'center';
+                                    tempDiv.style.justifyContent = 'center';
+
+                                    const outlineThickness = parseFloat(textElement.style.webkitTextStrokeWidth) || 0;
+                                    const outlineColor = textElement.style.webkitTextStrokeColor || '#000000';
+                                    if (outlineThickness > 0) {
+                                        tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`;
+                                        tempDiv.style.webkitTextStrokeColor = outlineColor;
+                                        tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor);
+                                    } else {
+                                        tempDiv.style.webkitTextStrokeWidth = '0';
+                                        tempDiv.style.webkitTextStrokeColor = 'transparent';
+                                        tempDiv.style.textShadow = 'none';
+                                    }
+
+                                    tempDiv.textContent = textElement.textContent;
+                                    document.body.appendChild(tempDiv);
+                                    const rawTextRect = tempDiv.getBoundingClientRect();
+                                    const minContentWidth = rawTextRect.width;
+                                    const minContentHeight = rawTextRect.height;
+                                    document.body.removeChild(tempDiv);
+
+                                    const wrapperPaddingHorizontal = 25;
+                                    const wrapperPaddingVertical = 10;
+                                    const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
+                                    const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
+
+                                    const widthDiff = clampedWidth - newWidth;
+                                    const heightDiff = clampedHeight - newHeight;
+                                    if (activeHandle.startsWith('top-')) {
+                                        newTop -= heightDiff;
+                                    }
+                                    if (activeHandle.endsWith('-left')) {
+                                        newLeft -= widthDiff;
+                                    }
+                                    newWidth = clampedWidth;
+                                    newHeight = clampedHeight;
+                                }
+
+                                newWidth = Math.max(20, newWidth);
+                                newHeight = Math.max(20, newHeight);
+
+                                selectedElementWrapper.style.width = `${newWidth}px`;
+                                selectedElementWrapper.style.height = `${newHeight}px`;
+                                selectedElementWrapper.style.left = `${newLeft}px`;
+                                selectedElementWrapper.style.top = `${newTop}px`;
+
+                                initialMouseX = currentTouchXOnUnscaledWrapper;
+                                initialMouseY = currentTouchYOnUnscaledWrapper;
+                                initialWidth = newWidth;
+                                initialHeight = newHeight;
+                                initialLeft = newLeft;
+                                initialTop = newTop;
+                            } else if (isRotating) {
+                                const rect = selectedElementWrapper.getBoundingClientRect();
+                                const centerX = rect.left + rect.width / 2;
+                                const centerY = rect.top + rect.height / 2;
+
+                                const currentAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX);
+                                const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
+                                let newRotation = initialElementRotation + angleDiff;
+                                newRotation = (newRotation % 360 + 360) % 360;
+
+                                const currentScale = getElementState(selectedElementWrapper).scale;
+                                applyElementTransform(selectedElementWrapper, newRotation, currentScale);
+                                rotationRange.value = newRotation;
+                                rotationValue.textContent = `${Math.round(newRotation)}°`;
+                            }
+                            pendingDOMUpdateAnimationFrame = null; // Reset for next frame
                         });
                     }
-                } else if (isResizing && selectedElementWrapper) {
-                    e.preventDefault();
-                    const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
-                    const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
 
-                    let newWidth = initialWidth;
-                    let newHeight = initialHeight;
-                    let newLeft = initialLeft;
-                    let newTop = initialTop;
-
-                    const contentElement = selectedElementWrapper.querySelector('.element-content');
-                    if (contentElement && (contentElement.tagName === 'IMG')) {
-                        const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
-
-                        let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
-                        let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
-
-                        if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
-                            newWidth = potentialNewWidth;
-                            newHeight = newWidth / originalImageAspectRatio;
-                        } else {
-                            newHeight = potentialNewHeight;
-                            newWidth = newHeight * originalImageAspectRatio;
-                        }
-
-                        newWidth = Math.max(20, newWidth);
-                        newHeight = Math.max(20, newHeight);
-
-                        if (activeHandle.includes('left')) {
-                            newLeft = initialLeft + initialWidth - newWidth;
-                        }
-                        if (activeHandle.includes('top')) {
-                            newTop = initialTop + initialHeight - newHeight;
-                        }
-
-                    } else if (contentElement && contentElement.classList.contains('text-content')) {
-                        switch (activeHandle) {
-                            case 'top-left':
-                                newWidth = initialWidth - dx;
-                                newHeight = initialHeight - dy;
-                                newLeft = initialLeft + dx;
-                                newTop = initialTop + dy;
-                                break;
-                            case 'top-right':
-                                newWidth = initialWidth + dx;
-                                newHeight = initialHeight - dy;
-                                newTop = initialTop + dy;
-                                break;
-                            case 'bottom-left':
-                                newWidth = initialWidth - dx;
-                                newHeight = initialHeight + dy;
-                                newLeft = initialLeft + dx;
-                                break;
-                            case 'bottom-right':
-                                newWidth = initialWidth + dx;
-                                newHeight = initialHeight + dy;
-                                break;
-                        }
-
-                        const textElement = contentElement;
-                        const tempDiv = document.createElement('div');
-                        tempDiv.style.position = 'absolute';
-                        tempDiv.style.visibility = 'hidden';
-                        tempDiv.style.whiteSpace = 'pre-wrap';
-                        tempDiv.style.wordBreak = 'break-word';
-                        tempDiv.style.boxSizing = 'border-box';
-                        tempDiv.style.fontSize = window.getComputedStyle(textElement).fontSize;
-                        tempDiv.style.fontWeight = window.getComputedStyle(textElement).fontWeight;
-                        tempDiv.style.fontStyle = window.getComputedStyle(textElement).fontStyle;
-                        tempDiv.style.fontFamily = window.getComputedStyle(textElement).fontFamily;
-                        tempDiv.style.lineHeight = '1';
-                        tempDiv.style.textAlign = 'center';
-                        tempDiv.style.display = 'flex';
-                        tempDiv.style.alignItems = 'center';
-                        tempDiv.style.justifyContent = 'center';
-
-                        const outlineThickness = parseFloat(textElement.style.webkitTextStrokeWidth) || 0;
-                        const outlineColor = textElement.style.webkitTextStrokeColor || '#000000';
-                        if (outlineThickness > 0) {
-                            tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`;
-                            tempDiv.style.webkitTextStrokeColor = outlineColor;
-                            tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor);
-                        } else {
-                            tempDiv.style.webkitTextStrokeWidth = '0';
-                            tempDiv.style.webkitTextStrokeColor = 'transparent';
-                            tempDiv.style.textShadow = 'none';
-                        }
-
-                        tempDiv.textContent = textElement.textContent;
-                        document.body.appendChild(tempDiv);
-                        const rawTextRect = tempDiv.getBoundingClientRect();
-                        const minContentWidth = rawTextRect.width;
-                        const minContentHeight = rawTextRect.height;
-                        document.body.removeChild(tempDiv);
-
-                        const wrapperPaddingHorizontal = 25;
-                        const wrapperPaddingVertical = 10;
-                        const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
-                        const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
-
-                        const widthDiff = clampedWidth - newWidth;
-                        const heightDiff = clampedHeight - newHeight;
-                        if (activeHandle.startsWith('top-')) {
-                            newTop -= heightDiff;
-                        }
-                        if (activeHandle.endsWith('-left')) {
-                            newLeft -= widthDiff;
-                        }
-                        newWidth = clampedWidth;
-                        newHeight = clampedHeight;
-                    }
-
-                    newWidth = Math.max(20, newWidth);
-                    newHeight = Math.max(20, newHeight);
-
-                    selectedElementWrapper.style.width = `${newWidth}px`;
-                    selectedElementWrapper.style.height = `${newHeight}px`;
-                    selectedElementWrapper.style.left = `${newLeft}px`;
-                    selectedElementWrapper.style.top = `${newTop}px`;
-
-                    initialMouseX = currentTouchXOnUnscaledWrapper;
-                    initialMouseY = currentTouchYOnUnscaledWrapper;
-                    initialWidth = newWidth;
-                    initialHeight = newHeight;
-                    initialLeft = newLeft;
-                    initialTop = newTop;
-
-                    if (!pendingUpdateAnimationFrame) {
-                        pendingUpdateAnimationFrame = requestAnimationFrame(() => {
-                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                            pendingUpdateAnimationFrame = null;
-                        });
-                    }
-                } else if (isRotating && selectedElementWrapper) {
-                    e.preventDefault();
-                    const rect = selectedElementWrapper.getBoundingClientRect();
-                    const centerX = rect.left + rect.width / 2;
-                    const centerY = rect.top + rect.height / 2;
-
-                    const currentAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX);
-                    const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
-                    let newRotation = initialElementRotation + angleDiff;
-                    newRotation = (newRotation % 360 + 360) % 360;
-
-                    const currentScale = getElementState(selectedElementWrapper).scale;
-                    applyElementTransform(selectedElementWrapper, newRotation, currentScale);
-                    rotationRange.value = newRotation;
-                    rotationValue.textContent = `${Math.round(newRotation)}°`;
-
-                    if (!pendingUpdateAnimationFrame) {
-                        pendingUpdateAnimationFrame = requestAnimationFrame(() => {
-                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                            pendingUpdateAnimationFrame = null;
+                    // Send WebSocket update at a lower frequency for touch events
+                    if (!touchDragUpdateQueued) {
+                        touchDragUpdateQueued = true;
+                        requestAnimationFrame(() => {
+                            if (selectedElementWrapper) {
+                                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            }
+                            touchDragUpdateQueued = false;
                         });
                     }
                 }
@@ -2926,6 +2945,11 @@
 
         document.addEventListener('touchend', () => {
             if (isDragging || isResizing || isRotating) {
+                // Ensure final state is sent and applied after drag/resize/rotate ends
+                if (pendingDOMUpdateAnimationFrame) {
+                    cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
+                    pendingDOMUpdateAnimationFrame = null;
+                }
                 if (pendingUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingUpdateAnimationFrame);
                     pendingUpdateAnimationFrame = null;
@@ -2938,6 +2962,7 @@
             isResizing = false;
             isRotating = false;
             activeHandle = '';
+            touchDragUpdateQueued = false; // Reset the flag
         });
 
         document.querySelectorAll('.tab-button').forEach(button => {
