@@ -560,6 +560,7 @@
                     </svg>
                 </button>
             </div>
+            <div id="audioCountdown" class="text-xs text-gray-400 mt-2 text-center" style="display: none;"></div>
             <div class="mb-4">
                 <label for="volumeRange" class="block text-sm font-medium text-gray-300 mb-2">Volumen</label>
                 <div class="flex items-center space-x-2">
@@ -567,6 +568,8 @@
                     <span id="volumeValue" class="text-xs text-gray-400 w-10 text-right">50%</span>
                 </div>
             </div>
+            <!-- INICIO - CÓDIGO DE LA LÍNEA DE TIEMPO (COMENTADO) -->
+            <!--
             <div class="mb-4">
                 <label for="timelineRange" class="block text-sm font-medium text-gray-300 mb-2">Línea de tiempo</label>
                 <div class="flex items-center space-x-2">
@@ -574,6 +577,8 @@
                     <span id="currentTimeDisplay" class="text-xs text-gray-400 w-16 text-right">0:00 / 0:00</span>
                 </div>
             </div>
+            -->
+            <!-- FIN - CÓDIGO DE LA LÍNEA DE TIEMPO (COMENTADO) -->
             <h3 class="text-md font-semibold mb-2 text-purple-400 mt-6">Audios Subidos</h3>
             <div id="audioPlaylist" class="space-y-2">
                 <p class="text-gray-400 text-sm">No hay audios subidos.</p>
@@ -637,8 +642,8 @@
         const pauseIcon = document.getElementById('pauseIcon');
         const volumeRange = document.getElementById('volumeRange');
         const volumeValueDisplay = document.getElementById('volumeValue');
-        const timelineRange = document.getElementById('timelineRange');
-        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        // COMENTADO: const timelineRange = document.getElementById('timelineRange'); // Desactivada la barra de línea de tiempo
+        // COMENTADO: const currentTimeDisplay = document.getElementById('currentTimeDisplay'); // Desactivada la visualización del tiempo actual
         const currentAudioNameDisplay = document.getElementById('currentAudioName');
         const audioPlaylist = document.getElementById('audioPlaylist');
         const fileLimit = 50;
@@ -654,6 +659,9 @@
         const mutePreferenceModal = document.getElementById('mutePreferenceModal');
         const modalMuteBtn = document.getElementById('modalMuteBtn');
         const modalSoundBtn = document.getElementById('modalSoundBtn');
+        const audioCountdown = document.getElementById('audioCountdown');
+
+
         let selectedElementWrapper = null;
         let selectedAudioElement = null;
         let isDragging = false;
@@ -670,6 +678,13 @@
         const WS_URL = 'wss://pagina-mods-websocket-server.onrender.com';
         let ws = null; // Initialize to null
         let reconnectInterval = null; // Initialize to null
+        let audioCountdownInterval = null; // New: for audio countdown
+
+        // COMENTADO: Throttle for audio time updates - Ya no es necesario al eliminar la barra de tiempo
+        // COMENTADO: let audioTimeUpdateThrottleTimeout = null;
+        // COMENTADO: const AUDIO_TIME_UPDATE_THROTTLE_MS = 500; // Send audio time updates every 500ms
+        // COMENTADO: let audioTimeUpdateAnimationFrame = null; // New: for UI updates on requestAnimationFrame
+
 
         // New variables for user identification, similar to indexx.html
         let myUserId = 'user-' + Math.random().toString(36).substr(2, 9);
@@ -685,23 +700,38 @@
             return color;
         }
 
-        const DRAG_SEND_THROTTLE_MS = 100; // Throttle constant for sending updates
+        // Throttle constant for sending updates - Changed to 80ms
+        const DRAG_SEND_THROTTLE_MS = 80; 
         let dragSendTimeout = null; // Throttle timeout variable
         let pendingDOMUpdateAnimationFrame = null; // Variable to control requestAnimationFrame for updates
 
+        // Constants for delays
+        // const AUDIO_PLAY_DELAY_MS = 30000; // 30 seconds - Comentado: el audio ahora debería reproducirse de inmediato
+        const AUDIO_PLAY_DELAY_MS = 0; // Se establece en 0 para evitar el retraso.
+
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                console.log('WebSocket already connected.');
+                console.log('[WS_CONNECT] WebSocket already connected. State:', ws.readyState);
                 return;
             }
             updateWsStatus('connecting');
+            console.log('[WS_CONNECT] Attempting to connect to WebSocket server...');
+
+
+            // Clear any existing reconnect interval before attempting a new connection
+            if (reconnectInterval) {
+                console.log('[WS_CONNECT] Clearing existing reconnect interval.');
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
 
             try {
                 ws = new WebSocket(WS_URL);
             } catch (e) {
-                console.error('Failed to create WebSocket:', e);
-                // Immediately attempt reconnect if creation fails synchronously
+                console.error('[WS_CONNECT_ERROR] Failed to create WebSocket:', e.message || e);
+                // Start reconnection attempts only if not already running
                 if (!reconnectInterval) {
+                    console.log('[WS_CONNECT] Starting reconnection attempts in 5 seconds...');
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
                 return; // Stop here if creation failed
@@ -709,9 +739,9 @@
 
 
             ws.onopen = () => {
-                console.log('Connected to WebSocket server');
+                console.log('[WS_EVENT] Connected to WebSocket server. State:', ws.readyState);
                 updateWsStatus('connected');
-                if (reconnectInterval) {
+                if (reconnectInterval) { // Clear interval if successfully connected
                     clearInterval(reconnectInterval);
                     reconnectInterval = null;
                 }
@@ -721,15 +751,26 @@
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
-                console.log('[WS_MESSAGE_RECEIVED]', message);
+                // console.log('[WS_MESSAGE_RECEIVED]', message); // Keep this line for general debugging, but not for every ping
                 if (message.type === 'initialState') {
+                    console.log('[WS_MESSAGE_RECEIVED] Received initialState. Clearing existing elements and re-rendering.');
                     allElements.clear();
                     mainCanvasWrapper.querySelectorAll('.element-wrapper').forEach(el => el.remove());
                     audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
-                    selectedAudioElement = null;
+                    // Do NOT auto-select any audio on initial state load
+                    selectedAudioElement = null; 
+                    if (audioCountdownInterval) {
+                        clearInterval(audioCountdownInterval);
+                        audioCountdownInterval = null;
+                    }
+                    audioCountdown.style.display = 'none';
 
                     message.elements.forEach(data => {
                         if (data.type === 'audio') {
+                            // Ensure readyTimestamp is set for existing audio elements from server
+                            if (!data.readyTimestamp) {
+                                data.readyTimestamp = Date.now(); // Assume existing are ready now
+                            }
                             createAudioElementAndAddToPlaylist(data);
                         } else {
                             createElementFromData(data);
@@ -741,7 +782,7 @@
                     updateFileCountDisplay();
                     deselectAllElements();
                 } else if (message.type === 'elementAdd') {
-                    console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}`);
+                    console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}, type: ${message.element.type}`);
 
                     if (allElements.has(message.element.id)) {
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} already exists locally, updating.`);
@@ -749,6 +790,10 @@
                     } else {
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new (from another client), creating it.`);
                         if (message.element.type === 'audio') {
+                            // If audio is added by another client, set its ready timestamp
+                            if (!message.element.readyTimestamp) {
+                                message.element.readyTimestamp = Date.now(); // Assume ready when received
+                            }
                             createAudioElementAndAddToPlaylist(message.element);
                         } else {
                             createElementFromData(message.element);
@@ -758,15 +803,18 @@
                     updateAudioPlaylistDisplay();
                     updateFileCountDisplay();
                 } else if (message.type === 'elementUpdate') {
+                    // console.log(`[WS_MESSAGE_RECEIVED] elementUpdate for ID: ${message.element.id}, type: ${message.element.type}`); // Can be verbose
                     updateElementFromData(message.element);
                     updateLayersList();
                     updateAudioPlaylistDisplay();
                 } else if (message.type === 'elementDelete') {
+                    console.log(`[WS_MESSAGE_RECEIVED] elementDelete for ID: ${message.elementId}`);
                     deleteElementFromData(message.elementId);
                     updateLayersList();
                     updateAudioPlaylistDisplay();
                     updateFileCountDisplay();
                 } else if (message.type === 'reorderLayers') {
+                    console.log(`[WS_MESSAGE_RECEIVED] reorderLayers.`);
                     message.elements.forEach(elementData => {
                         const elementWrapper = allElements.get(elementData.id);
                         if (elementWrapper && elementWrapper.style) {
@@ -776,38 +824,43 @@
                     updateLayersList();
                 }
                 else if (message.type === 'ping') {
-                    // console.log("Received ping, sending pong.");
+                    // console.log("[WS_MESSAGE_RECEIVED] Received ping, ignoring."); // Keep pings from spamming console
+                } else {
+                    console.warn('[WS_MESSAGE_RECEIVED] Unknown message type:', message.type, message);
                 }
-                // Removed cursorMove, userConnect, userDisconnect message handling as they are not part of current features.
             };
 
             ws.onclose = (event) => {
-                console.log('Disconnected from WebSocket server. Code:', event.code, 'Reason:', event.reason);
+                console.log(`[WS_EVENT] Disconnected from WebSocket server. Code: ${event.code}, Reason: ${event.reason}. Was clean: ${event.wasClean}.`);
                 ws = null; // Clear the WebSocket instance
                 updateWsStatus('disconnected');
+                // Start reconnection attempts only if not already running
                 if (!reconnectInterval) {
+                    console.log('[WS_CLOSE] Starting reconnection attempts in 5 seconds...');
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
                 // Inform the server about disconnection (if it's not a planned closure)
-                if (myUserId) {
-                    sendWebSocketMessage('userDisconnect', { userId: myUserId });
-                }
+                // This message will likely fail to send if the WS is truly closed, which is fine.
+                sendWebSocketMessage('userDisconnect', { userId: myUserId });
             };
 
             ws.onerror = (err) => {
-                console.error('WebSocket error occurred:', err);
-                // The 'error' event usually precedes 'close',
-                // so the onclose handler will take care of reconnecting.
-                // No need to call ws.close() here again, as it might already be closing
-                // or onclose will be triggered anyway.
+                // Log more details about the error event
+                // The 'error' event usually precedes 'close', so onclose will handle reconnection.
+                console.error(`[WS_EVENT] WebSocket error occurred:`, err.message || err.code || JSON.stringify(err));
             };
         }
 
         function sendWebSocketMessage(type, data) {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type, ...data }));
+                try {
+                    ws.send(JSON.stringify({ type, ...data }));
+                    // console.log(`[WS_SENT] Message sent: ${type}`); // Too verbose for every send
+                } catch (e) {
+                    console.error(`[WS_SEND_ERROR] Error sending message of type ${type}:`, e.message || e);
+                }
             } else {
-                console.warn('WebSocket not connected, could not send message:', type, data);
+                console.error(`[WS_SEND_FAILED] WebSocket not connected (readyState: ${ws ? ws.readyState : 'null'}), could not send message: ${type}`, data);
             }
         }
 
@@ -946,12 +999,14 @@
         function createElementFromData(data) {
             if (allElements.has(data.id)) {
                 const existingElement = allElements.get(data.id);
+                // If it's a visual element and already exists, update it.
+                // This handles cases where an element is already created locally but then an 'elementAdd' comes from server.
                 if (existingElement.classList && existingElement.classList.contains('element-wrapper')) {
                     updateElementFromData(data);
                     return;
                 }
             }
-
+            // If it's an audio element, it will be handled by createAudioElementAndAddToPlaylist
             if (data.type === 'audio') {
                 createAudioElementAndAddToPlaylist(data);
                 return;
@@ -968,6 +1023,13 @@
             wrapperDiv.style.top = data.top;
             applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
             wrapperDiv.style.zIndex = data.zIndex;
+            wrapperDiv.style.opacity = data.opacity; // Set initial opacity from data
+
+            // For images/gifs from other clients, ensure they are visible and their interaction state is correct
+            wrapperDiv.style.visibility = data.visibility || 'visible';
+            wrapperDiv.style.pointerEvents = data.readyForInteraction === 'false' ? 'none' : 'auto';
+            wrapperDiv.dataset.readyForInteraction = data.readyForInteraction || 'true';
+
 
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
@@ -980,7 +1042,7 @@
             }
 
             let contentElement;
-            if (data.type === 'img') {
+            if (data.type === 'img' || data.type === 'gif') {
                 contentElement = document.createElement('img');
                 contentElement.src = data.src;
                 contentElement.alt = data.originalName || 'Image';
@@ -1052,30 +1114,41 @@
                 audioElement.muted = data.muted || isMutedGlobally;
                 audioElement.dataset.originalName = data.originalName || `Audio ${data.id.substring(data.id.length - 4)}`;
                 audioElement.dataset.type = 'audio';
+                audioElement.dataset.readyTimestamp = data.readyTimestamp || Date.now(); // Ensure timestamp is set
                 if (data.publicId) {
                     audioElement.dataset.publicId = data.publicId;
                 }
+                audioElement.preload = "metadata"; // Cambiado a "metadata" para reducir la carga inicial
 
                 audioElement.addEventListener('loadedmetadata', () => {
                     console.log(`[AUDIO_EVENT] loadedmetadata for ${audioElement.id}. Duration: ${audioElement.duration}`);
                     if (isNaN(audioElement.duration)) {
                         audioElement.duration = data.duration || audioElement.duration;
                     }
-                    updateTimelineDisplay(audioElement);
+                    // COMENTADO: updateTimelineDisplay(audioElement);
                 });
+
+                // Eliminado: La lógica de envío de mensajes WebSocket para 'timeupdate' ha sido eliminada
                 audioElement.addEventListener('timeupdate', () => {
-                    if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-                        updateTimelineDisplay(audioElement);
-                    }
+                    // COMENTADO: Las actualizaciones de la interfaz de usuario para la línea de tiempo ya están comentadas.
+                    // COMENTADO: El envío de mensajes WebSocket para timeupdate se ha eliminado para reducir el tráfico.
                 });
+
                 audioElement.addEventListener('ended', () => {
                     console.log(`[AUDIO_EVENT] Audio ended for ${audioElement.id}`);
                     if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
                         updatePlayPauseButton(true);
                         audioElement.currentTime = 0;
-                        timelineRange.value = 0;
-                        currentTimeDisplay.textContent = formatTime(0) + ' / ' + formatTime(audioElement.duration || 0);
-                        sendWebSocketMessage('elementUpdate', { element: getElementState(audioElement) });
+                        // COMENTADO: timelineRange.value = 0; // La barra de línea de tiempo está comentada
+                        // COMENTADO: currentTimeDisplay.textContent = formatTime(0) + ' / ' + formatTime(audioElement.duration || 0); // La visualización del tiempo está comentada
+                        // Explicitly send that it's paused and at start
+                        sendWebSocketMessage('elementUpdate', {
+                            element: {
+                                ...getElementState(audioElement),
+                                isPlaying: false,
+                                paused: true // Ensure paused state is sent
+                            }
+                        });
                     }
                 });
 
@@ -1083,25 +1156,47 @@
                 console.log(`[AUDIO_CREATE] Audio element ${audioElement.id} added to allElements. Map size: ${allElements.size}`);
             } else {
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} already exists, updating properties.`);
-                audioElement.src = data.src;
-                audioElement.volume = data.volume;
-                audioElement.currentTime = data.currentTime;
-                audioElement.dataset.lastVolume = data.lastVolume;
-                audioElement.muted = data.muted || isMutedGlobally;
+                const elementToUpdate = allElements.get(data.id); // Get the existing element
+                elementToUpdate.src = data.src;
+                elementToUpdate.volume = data.volume;
+                elementToUpdate.muted = data.muted; 
+                elementToUpdate.dataset.lastVolume = data.lastVolume;
+                elementToUpdate.dataset.readyTimestamp = data.readyTimestamp || elementToUpdate.dataset.readyTimestamp; 
                 if (data.publicId) {
-                    audioElement.dataset.publicId = data.publicId;
+                    elementToUpdate.dataset.publicId = data.publicId;
                 }
 
-                if (audioElement.paused || Math.abs(audioElement.currentTime - data.currentTime) > 0.1) {
-                    audioElement.currentTime = data.currentTime;
-                    console.log(`[UPDATE] Setting currentTime for ${data.id} to ${data.currentTime}`);
+                const timeDifference = Math.abs(elementToUpdate.currentTime - data.currentTime);
+                if (elementToUpdate.paused || timeDifference > 0.5) { 
+                    elementToUpdate.currentTime = data.currentTime;
+                    console.log(`[AUDIO_DEBUG] Setting currentTime for ${data.id} to ${data.currentTime} (difference: ${timeDifference.toFixed(2)}s, or was paused).`);
                 }
 
-                // Make sure to use 'element' reference correctly here
-                if (data.isPlaying && audioElement.paused && !isMutedGlobally) {
-                    audioElement.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
-                } else if (!data.isPlaying && !audioElement.paused) {
-                    audioElement.pause();
+
+                const isReady = (parseFloat(elementToUpdate.dataset.readyTimestamp) || 0) <= Date.now();
+                const shouldBePlayingAccordingToServer = data.isPlaying;
+                const isCurrentlyPlayingLocally = !elementToUpdate.paused;
+
+                console.log(`[AUDIO_DEBUG] Element ${elementToUpdate.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${elementToUpdate.paused}, Muted=${elementToUpdate.muted}, Ready=${isReady}`);
+
+
+                if (shouldBePlayingAccordingToServer && isReady && !elementToUpdate.muted) {
+                    if (elementToUpdate.paused) { 
+                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${elementToUpdate.id} due to server update. (Was paused, not muted, ready).`);
+                        elementToUpdate.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${elementToUpdate.id} during update:`, e));
+                    } else {
+                        console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} already playing locally as per server. No action.`);
+                    }
+                } else if (!shouldBePlayingAccordingToServer) {
+                    if (!elementToUpdate.paused) { 
+                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${elementToUpdate.id} due to server update. (Was playing locally).`);
+                        elementToUpdate.pause();
+                    } else {
+                        console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} already paused locally as per server. No action.`);
+                    }
+                } else if (elementToUpdate.muted && !elementToUpdate.paused) { 
+                    console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} should be playing but is muted. Pausing.`);
+                    elementToUpdate.pause();
                 }
             }
         }
@@ -1177,30 +1272,60 @@
                 console.log(`[UPDATE] Updating properties of AUDIO element: ${data.id}`);
                 element.src = data.src;
                 element.volume = data.volume;
+                element.muted = data.muted; 
                 element.dataset.lastVolume = data.lastVolume;
-                element.muted = data.muted; // Use data.muted directly as it comes from server
+                element.dataset.readyTimestamp = data.readyTimestamp || element.dataset.readyTimestamp; 
                 if (data.publicId) {
                     element.dataset.publicId = data.publicId;
                 }
 
-                if (element.paused || Math.abs(element.currentTime - data.currentTime) > 0.1) {
+                const timeDifference = Math.abs(element.currentTime - data.currentTime);
+                if (element.paused || timeDifference > 0.5) { 
                     element.currentTime = data.currentTime;
-                    console.log(`[UPDATE] Setting currentTime for ${data.id} to ${data.currentTime}`);
+                    console.log(`[AUDIO_DEBUG] Setting currentTime for ${data.id} to ${data.currentTime} (difference: ${timeDifference.toFixed(2)}s, or was paused).`);
                 }
 
-                if (data.isPlaying && element.paused && !element.muted) { // Check !element.muted here
-                    element.play().catch(e => console.warn('Autoplay blocked during update for audio element:', e));
-                } else if (!data.isPlaying && !element.paused) {
+
+                const isReady = (parseFloat(element.dataset.readyTimestamp) || 0) <= Date.now();
+                const shouldBePlayingAccordingToServer = data.isPlaying;
+                const isCurrentlyPlayingLocally = !element.paused;
+
+                console.log(`[AUDIO_DEBUG] Element ${element.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${element.paused}, Muted=${element.muted}, Ready=${isReady}`);
+
+
+                if (shouldBePlayingAccordingToServer && isReady && !element.muted) {
+                    if (element.paused) { 
+                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${element.id} due to server update. (Was paused, not muted, ready).`);
+                        element.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${element.id} during update:`, e));
+                    } else {
+                        console.log(`[AUDIO_DEBUG] ${element.id} already playing locally as per server. No action.`);
+                    }
+                } else if (!shouldBePlayingAccordingToServer) {
+                    if (!element.paused) { 
+                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${element.id} due to server update. (Was playing locally).`);
+                        element.pause();
+                    } else {
+                        console.log(`[AUDIO_DEBUG] ${element.id} already paused locally as per server. No action.`);
+                    }
+                } else if (element.muted && !element.paused) { 
+                    console.log(`[AUDIO_DEBUG] ${element.id} should be playing but is muted. Pausing.`);
                     element.pause();
                 }
             } else {
-                // Update DOM directly for visual smoothness from remote updates
                 element.style.left = data.left;
                 element.style.top = data.top;
                 element.style.width = data.width;
                 element.style.height = data.height;
                 applyElementTransform(element, data.rotation || 0, data.scale || 1);
                 element.style.zIndex = data.zIndex;
+                element.style.opacity = data.opacity; 
+                element.style.visibility = data.visibility || 'visible'; 
+                element.dataset.readyForInteraction = data.readyForInteraction || 'true'; 
+                if (element.dataset.readyForInteraction === 'false') {
+                    element.style.pointerEvents = 'none';
+                } else {
+                    element.style.pointerEvents = 'auto';
+                }
                 
                 contentElement = element.querySelector('.element-content');
                 if (contentElement) {
@@ -1236,8 +1361,9 @@
                 volumeRange.value = element.volume;
                 volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
                 updatePlayPauseButton(element.paused);
-                updateTimelineDisplay(element);
+                // COMENTADO: updateTimelineDisplay(element); // La visualización del tiempo está comentada
                 currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
+                checkAudioReadyState(selectedAudioElement);
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
                 if (contentElement) { 
                     console.log(`[UPDATE] Updating UI for selected visual element ${data.id}`);
@@ -1311,7 +1437,9 @@
             }
         }
 
+        // COMENTADO: Función updateTimelineDisplay (ya no es necesaria sin la barra de tiempo interactiva)
         function updateTimelineDisplay(audioElement) {
+            /*
             if (!isNaN(audioElement.duration)) {
                 timelineRange.max = audioElement.duration;
                 timelineRange.value = audioElement.currentTime;
@@ -1319,6 +1447,7 @@
             } else {
                 currentTimeDisplay.textContent = `0:00 / 0:00`;
             }
+            */
         }
 
         function applyGlobalMuteState() {
@@ -1328,6 +1457,12 @@
                     if (selectedAudioElement && selectedAudioElement.id === element.id) {
                          volumeRange.value = element.volume;
                          volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
+                    }
+                    if (element.isPlaying && element.muted) {
+                        element.pause();
+                        sendWebSocketMessage('elementUpdate', {
+                            element: { ...getElementState(element), isPlaying: false, paused: true }
+                        });
                     }
                 }
             });
@@ -1403,13 +1538,69 @@
             selectedAudioElement = null;
             playPauseBtn.disabled = true;
             volumeRange.disabled = true;
-            timelineRange.disabled = true;
+            // COMENTADO: timelineRange.disabled = true; // La barra de línea de tiempo está comentada
             currentAudioNameDisplay.textContent = '';
             volumeRange.value = 0.5;
             volumeValueDisplay.textContent = '50%';
-            timelineRange.value = 0;
-            currentTimeDisplay.textContent = '0:00 / 0:00';
+            // COMENTADO: timelineRange.value = 0; // La barra de línea de tiempo está comentada
+            // COMENTADO: currentTimeDisplay.textContent = '0:00 / 0:00'; // La visualización del tiempo está comentada
             updatePlayPauseButton(true);
+
+            // Clear and hide audio countdown
+            if (audioCountdownInterval) {
+                clearInterval(audioCountdownInterval);
+                audioCountdownInterval = null;
+            }
+            audioCountdown.style.display = 'none';
+            audioCountdown.textContent = '';
+        }
+
+        // Function to check and update play button state and countdown for selected audio
+        function checkAudioReadyState(audioElement) {
+            if (!audioElement || !audioElement.dataset.readyTimestamp) {
+                playPauseBtn.disabled = true;
+                audioCountdown.style.display = 'none';
+                audioCountdown.textContent = '';
+                return;
+            }
+
+            const readyTime = parseFloat(audioElement.dataset.readyTimestamp);
+            const timeRemaining = Math.max(0, Math.ceil((readyTime - Date.now()) / 1000));
+
+            if (timeRemaining > 0) {
+                playPauseBtn.disabled = true;
+                audioCountdown.style.display = 'block';
+                audioCountdown.textContent = `Reproducción en ${timeRemaining} segundos...`;
+
+                if (!audioCountdownInterval) {
+                    audioCountdownInterval = setInterval(() => {
+                        const newTimeRemaining = Math.max(0, Math.ceil((readyTime - Date.now()) / 1000));
+                        if (newTimeRemaining > 0) {
+                            audioCountdown.textContent = `Reproducción en ${newTimeRemaining} segundos...`;
+                        } else {
+                            clearInterval(audioCountdownInterval);
+                            audioCountdownInterval = null;
+                            audioCountdown.style.display = 'none';
+                            audioCountdown.textContent = '';
+                            playPauseBtn.disabled = false; 
+                            if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
+                                // COMENTADO: updateTimelineDisplay(selectedAudioElement); // La visualización del tiempo está comentada
+                            }
+                        }
+                    }, 1000); 
+                }
+            } else {
+                playPauseBtn.disabled = false;
+                if (audioCountdownInterval) {
+                    clearInterval(audioCountdownInterval);
+                    audioCountdownInterval = null;
+                }
+                audioCountdown.style.display = 'none';
+                audioCountdown.textContent = '';
+                if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
+                    // COMENTADO: updateTimelineDisplay(selectedAudioElement); // La visualización del tiempo está comentada
+                }
+            }
         }
 
 
@@ -1457,7 +1648,7 @@
 
 
                 if (contentElement.classList.contains('text-content')) {
-                    textInput.disabled = false; // Ensure textInput is enabled when a text element is selected
+                    textInput.disabled = false; 
                     textInput.value = contentElement.textContent;
                     textColorInput.disabled = false;
                     boldTextBtn.disabled = false;
@@ -1520,8 +1711,7 @@
                         italicTextBtn.classList.remove('active-style');
                     }
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                } else { // If it's not a text element (e.g., an image)
-                    // Text input remains enabled, but styling controls are disabled.
+                } else { 
                     textColorInput.disabled = true;
                     boldTextBtn.disabled = true;
                     italicTextBtn.disabled = true;
@@ -1550,7 +1740,7 @@
 
         function selectAudioElement(audioElement) {
             console.log(`[SELECT] Selecting AUDIO element: ${audioElement.id}`);
-            deselectAllElements(); // Deselect visual elements, but textInput will remain enabled
+            deselectAllElements(); 
 
             selectedAudioElement = audioElement;
             document.querySelectorAll('.audio-list-item').forEach(item => item.classList.remove('selected'));
@@ -1588,16 +1778,17 @@
 
 
             // Enable audio controls
-            playPauseBtn.disabled = false;
             volumeRange.disabled = false;
-            timelineRange.disabled = false;
+            // COMENTADO: timelineRange.disabled = false; // La barra de línea de tiempo está comentada
 
             audioElement.muted = isMutedGlobally;
             volumeRange.value = audioElement.volume;
             volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
             updatePlayPauseButton(audioElement.paused);
-            updateTimelineDisplay(audioElement);
+            // COMENTADO: updateTimelineDisplay(audioElement); // La visualización del tiempo está comentada
             currentAudioNameDisplay.textContent = audioElement.dataset.originalName || 'Audio Seleccionado';
+            
+            checkAudioReadyState(audioElement);
         }
 
 
@@ -1716,23 +1907,34 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    if (file.type.startsWith('audio/')) {
+                    if (file.type.startsWith('audio/mpeg')) { 
                         console.log(`[FILE_HANDLER] File is audio: ${file.name}`);
-                        const tempAudio = new Audio();
+                        const tempAudio = document.createElement('audio');
                         tempAudio.src = e.target.result;
-                        tempAudio.addEventListener('loadedmetadata', () => {
-                            console.log(`[FILE_HANDLER] Audio metadata loaded for ${file.name}. Duration: ${tempAudio.duration}`);
-                            const maxAudioDurationSeconds = 480; // 8 minutes
-                            if (tempAudio.duration > maxAudioDurationSeconds) {
-                                // No callback needed for showConfirmationModal
-                                showConfirmationModal(`Este MP3 dura más de 8 minutos (${formatTime(tempAudio.duration)}). Por favor, sube un archivo más corto.`, null);
-                                return;
-                            }
-                            createLocalElementAndSend(file, e.target.result, tempAudio.duration);
-                        }, { once: true });
-                        tempAudio.addEventListener('error', (err) => {
-                            console.error('Error loading audio metadata:', err);
-                        }, { once: true });
+                        
+                        let audioReadyPromise = new Promise((resolve, reject) => {
+                            tempAudio.addEventListener('loadedmetadata', () => {
+                                console.log(`[FILE_HANDLER] Audio metadata loaded for ${file.name}. Duration: ${tempAudio.duration}`);
+                                const maxAudioDurationSeconds = 480; // 8 minutes
+                                if (tempAudio.duration > maxAudioDurationSeconds) {
+                                    showConfirmationModal(`Este MP3 dura más de 8 minutos (${formatTime(tempAudio.duration)}). Por favor, sube un archivo más corto.`, null);
+                                    reject(new Error('Audio too long'));
+                                    return;
+                                }
+                                resolve(tempAudio.duration);
+                            }, { once: true });
+                            tempAudio.addEventListener('error', (err) => {
+                                console.error('Error loading audio metadata:', err);
+                                reject(new Error('Error loading audio metadata'));
+                            }, { once: true });
+                        });
+
+                        audioReadyPromise.then(duration => {
+                            createLocalElementAndSend(file, e.target.result, duration);
+                        }).catch(error => {
+                            console.error('Failed to process audio file:', error);
+                        });
+                        
                     } else {
                         console.log(`[FILE_HANDLER] File is image/gif: ${file.name}`);
                         createLocalElementAndSend(file, e.target.result);
@@ -1750,7 +1952,7 @@
             };
             console.log(`[LOCAL_CREATE] Creating local element with ID: ${newId}, Name: ${file.name}`);
 
-            if (file.type.startsWith('image/')) {
+            if (file.type.startsWith('image/') || file.type.startsWith('image/gif')) {
                 const wrapperDiv = document.createElement('div');
                 wrapperDiv.id = newId;
                 wrapperDiv.classList.add('element-wrapper');
@@ -1787,12 +1989,17 @@
                     const initialLeft = greenCanvasCenterX - (finalWidth / 2);
                     const initialTop = greenCanvasCenterY - (finalHeight / 2);
 
-                    wrapperDiv.style.width = `${finalWidth}px`;
-                    wrapperDiv.style.height = `${finalHeight}px`;
                     wrapperDiv.style.left = `${initialLeft}px`;
                     wrapperDiv.style.top = `${initialTop}px`;
+                    wrapperDiv.style.width = `${finalWidth}px`;
+                    wrapperDiv.style.height = `${finalHeight}px`;
                     
                     addHandles(wrapperDiv);
+                    
+                    wrapperDiv.style.visibility = 'visible'; 
+                    wrapperDiv.style.pointerEvents = 'auto'; 
+                    wrapperDiv.dataset.readyForInteraction = 'true'; 
+
                     mainCanvasWrapper.appendChild(wrapperDiv);
                     allElements.set(wrapperDiv.id, wrapperDiv);
 
@@ -1800,7 +2007,6 @@
 
                     updateLayersList();
                     updateFileCountDisplay();
-                    // selectElement(wrapperDiv); // REMOVED: Do not auto-select element on upload
                     
                     elementState = {
                         ...elementState,
@@ -1812,9 +2018,11 @@
                         scale: 1,
                         zIndex: wrapperDiv.style.zIndex,
                         opacity: '1',
-                        type: 'img',
+                        type: file.type.startsWith('image/gif') ? 'gif' : 'img', 
                         src: srcData,
-                        initialAspectRatio: aspectRatio
+                        initialAspectRatio: aspectRatio,
+                        visibility: 'visible', 
+                        readyForInteraction: 'true' 
                     };
                     sendWebSocketMessage('elementAdd', { element: elementState });
                 };
@@ -1822,7 +2030,7 @@
                     contentElement.onload();
                 }
 
-            } else if (file.type.startsWith('audio/')) {
+            } else if (file.type.startsWith('audio/mpeg')) { 
                 const audioElement = document.createElement('audio');
                 audioElement.id = newId;
                 audioElement.src = srcData;
@@ -1832,48 +2040,66 @@
                 audioElement.muted = isMutedGlobally;
                 audioElement.dataset.originalName = file.name;
                 audioElement.dataset.type = 'audio';
+                audioElement.dataset.readyTimestamp = Date.now() + AUDIO_PLAY_DELAY_MS; 
+                audioElement.preload = "metadata"; // Cambiado a "metadata"
 
                 if (audioDuration !== null) {
-                    audioElement.duration = audioDuration;
-                } else {
-                    audioElement.addEventListener('loadedmetadata', () => {
-                        updateTimelineDisplay(audioElement);
-                        const updatedElementState = {
-                            ...elementState,
-                            duration: audioElement.duration,
+                    audioElement.duration = audioDuration; 
+                }
+
+                allElements.set(audioElement.id, audioElement); 
+                addAudioItemToPlaylistUI(audioElement);
+                updateFileCountDisplay();
+                
+                // Flag to ensure this prep logic runs only once for this newly uploaded audio
+                let isNewLocalAudioBeingPrepared = true;
+
+                audioElement.addEventListener('canplaythrough', function onCanPlayThroughPrep() {
+                    if (!isNewLocalAudioBeingPrepared) return; 
+                    console.log(`[AUDIO_PREP] Audio ${audioElement.id} canplaythrough for initial prep.`);
+                    audioElement.removeEventListener('canplaythrough', onCanPlayThroughPrep); 
+
+                    audioElement.play().then(() => {
+                        console.log(`[AUDIO_PREP] Quick play successful for ${audioElement.id}, now pausing.`);
+                        audioElement.pause();
+                        audioElement.currentTime = 0; 
+                        console.log(`[AUDIO_PREP] Quick play/pause successful for ${audioElement.id}. Audio should be ready.`);
+                        isNewLocalAudioBeingPrepared = false; 
+
+                        // Send the elementAdd message *after* this audio element is fully prepped locally
+                        const finalElementState = {
+                            ...elementState, 
                             type: 'audio',
                             src: srcData,
                             volume: audioElement.volume,
                             currentTime: audioElement.currentTime,
                             paused: audioElement.paused,
                             isPlaying: !audioElement.paused,
+                            duration: audioElement.duration,
                             lastVolume: audioElement.dataset.lastVolume,
-                            muted: audioElement.muted // Add muted state
+                            muted: audioElement.muted,
+                            readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), 
+                            left: '0px', top: '0px', width: '0px', height: '0px',
+                            rotation: 0, scale: 1, zIndex: 0, opacity: 1,
+                            visibility: 'visible',
+                            readyForInteraction: 'true'
                         };
-                        sendWebSocketMessage('elementUpdate', { element: updatedElementState });
-                    }, { once: true });
-                }
+                        sendWebSocketMessage('elementAdd', { element: finalElementState });
 
-                allElements.set(audioElement.id, audioElement);
-                addAudioItemToPlaylistUI(audioElement);
-                updateFileCountDisplay();
-                // selectAudioElement(audioElement); // REMOVED: Do not auto-select audio on upload
+                    }).catch(e => {
+                        console.warn(`[AUDIO_PREP_ERROR] Failed quick play/pause for ${audioElement.id}:`, e);
+                        isNewLocalAudioBeingPrepared = false; 
+                        
+                        // If prep fails, still send the initial state to server, but log the warning.
+                        const finalElementState = {
+                            ...elementState,
+                            type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime, paused: audioElement.paused, isPlaying: !audioElement.paused, duration: audioElement.duration, lastVolume: audioElement.dataset.lastVolume, muted: audioElement.muted, readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), left: '0px', top: '0px', width: '0px', height: '0px', rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'visible', readyForInteraction: 'true'
+                        };
+                        sendWebSocketMessage('elementAdd', { element: finalElementState });
+                    });
+                });
 
-                elementState = {
-                    ...elementState,
-                    type: 'audio',
-                    src: srcData,
-                    volume: audioElement.volume,
-                    currentTime: audioElement.currentTime,
-                    paused: audioElement.paused,
-                    isPlaying: !audioElement.paused,
-                    duration: audioElement.duration || audioDuration,
-                    lastVolume: audioElement.dataset.lastVolume,
-                    muted: audioElement.muted, // Add muted state
-                    left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1
-                };
-                sendWebSocketMessage('elementAdd', { element: elementState });
+                audioElement.load(); // Start loading the audio immediately to trigger canplaythrough
             }
         }
 
@@ -1914,6 +2140,10 @@
             wrapperDiv.style.width = 'auto';
             wrapperDiv.style.height = 'auto';
             wrapperDiv.dataset.originalName = 'Text Element';
+            wrapperDiv.dataset.readyForInteraction = 'true'; 
+            wrapperDiv.style.visibility = 'visible'; 
+            wrapperDiv.style.pointerEvents = 'auto';
+
 
             const textDiv = document.createElement('div');
             textDiv.classList.add('element-content', 'text-content', 'text-lg');
@@ -1956,12 +2186,11 @@
             mainCanvasWrapper.appendChild(wrapperDiv);
             allElements.set(wrapperDiv.id, wrapperDiv);
             adjustTextElementWrapperSize(wrapperDiv);
-            textDiv.focus(); // Focus the newly created text element for immediate editing
+            textDiv.focus(); 
 
             updateLayersList();
             updateFileCountDisplay();
-            // selectElement(wrapperDiv); // REMOVED: Do not auto-select element on add text
-
+            
             const elementState = {
                 id: wrapperDiv.id,
                 left: wrapperDiv.style.left,
@@ -1983,23 +2212,22 @@
                 outlineThickness: textDiv.style.webkitTextStrokeWidth,
                 outlineColor: textDiv.style.webkitTextStrokeColor,
                 hasTextBackground: (textDiv.style.backgroundColor !== 'transparent'),
-                hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0)
+                hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0),
+                visibility: 'visible', 
+                readyForInteraction: 'true' 
             };
             sendWebSocketMessage('elementAdd', { element: elementState });
         });
 
         textInput.addEventListener('input', () => {
-            // This event listener should only update the selected element if one is selected.
-            // For adding new text, the textInput.value is directly used in addTextBtn click.
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') {
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.textContent = textInput.value;
                     adjustTextElementWrapperSize(selectedElementWrapper);
                     updateLayersList();
 
-                    // Throttle WebSocket updates for text input as well
-                    if (!dragSendTimeout) { // Re-using dragSendTimeout for consistency, could be a separate one
+                    if (!dragSendTimeout) { 
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                             dragSendTimeout = null;
@@ -2022,16 +2250,19 @@
                     type: 'audio',
                     src: element.src,
                     volume: element.volume,
-                    currentTime: element.currentTime,
+                    currentTime: element.currentTime, // Se mantiene para enviar la posición actual al cambiar estado de play/pause/volumen
                     paused: element.paused,
-                    isPlaying: !element.paused,
+                    isPlaying: !element.paused, 
                     duration: element.duration,
                     lastVolume: element.dataset.lastVolume,
                     originalName: element.dataset.originalName,
                     publicId: element.dataset.publicId,
-                    muted: element.muted, // Add muted state here
+                    muted: element.muted, 
+                    readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now()), 
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1,
+                    visibility: 'visible', 
+                    readyForInteraction: 'true' 
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -2043,14 +2274,15 @@
 
                 const state = {
                     id: element.id,
-                    // Get computed styles for accurate current position
-                    left: element.style.left, // Use computed values from DOM directly
-                    top: element.style.top,   // Use computed values from DOM directly
+                    left: element.style.left, 
+                    top: element.style.top,   
                     width: element.style.width,
                     height: element.style.height,
                     zIndex: element.style.zIndex,
                     opacity: contentElement.style.opacity,
-                    originalName: element.dataset.originalName || ''
+                    originalName: element.dataset.originalName || '',
+                    visibility: element.style.visibility || 'visible', 
+                    readyForInteraction: element.dataset.readyForInteraction || 'true' 
                 };
 
                 const transform = element.style.transform;
@@ -2095,12 +2327,11 @@
         }
 
         opacityRange.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement) {
                     contentElement.style.opacity = opacityRange.value;
                     opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
-                    // Throttling for range inputs as well, they generate many events
                     if (!dragSendTimeout) {
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2112,12 +2343,11 @@
         });
 
         rotationRange.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const currentScale = getElementState(selectedElementWrapper).scale;
                 const newRotation = parseFloat(rotationRange.value);
                 applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                 rotationValue.textContent = `${Math.round(newRotation)}°`;
-                // Throttling for range inputs
                 if (!dragSendTimeout) {
                     dragSendTimeout = setTimeout(() => {
                         sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2128,19 +2358,18 @@
         });
 
         sizeRange.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const currentRotation = getElementState(selectedElementWrapper).rotation;
                 const newScale = parseFloat(sizeRange.value);
                 applyElementTransform(selectedElementWrapper, currentRotation, newScale);
                 sizeValue.textContent = `${Math.round(newScale * 100)}%`;
-                // Throttling for range inputs
                 if (!dragSendTimeout) {
                     dragSendTimeout = setTimeout(() => {
                         sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                         dragSendTimeout = null;
-                    }, DRAG_SEND_THROTTLE_MS);
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
                 }
-            }
         });
 
         duplicateElementBtn.addEventListener('click', () => {
@@ -2149,7 +2378,7 @@
                 console.warn(`File upload limit reached (${fileLimit} files).`);
                 return;
             }
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 if (selectedElementWrapper.tagName === 'AUDIO') {
                     console.warn('Audio elements cannot be duplicated from the canvas.');
                     return;
@@ -2184,13 +2413,17 @@
                 if (clonedWrapper.dataset.publicId === undefined && originalState.publicId) {
                     clonedWrapper.dataset.publicId = originalState.publicId;
                 }
+
+                clonedWrapper.dataset.readyForInteraction = 'true'; 
+                clonedWrapper.style.visibility = 'visible';
+                clonedWrapper.style.pointerEvents = 'auto';
                 
                 mainCanvasWrapper.appendChild(clonedWrapper);
                 allElements.set(newId, clonedWrapper);
 
                 updateLayersList();
                 updateFileCountDisplay();
-                selectElement(clonedWrapper); // Keep selection on duplication for immediate manipulation
+                selectElement(clonedWrapper); 
                 
                 const clonedState = getElementState(clonedWrapper);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
@@ -2199,7 +2432,7 @@
 
         deleteElementBtn.addEventListener('click', () => {
             console.log("[DELETE_ELEMENT] Delete element (visual) button clicked.");
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const deletedId = selectedElementWrapper.id;
                 deleteElementFromData(deletedId);
                 sendWebSocketMessage('elementDelete', { elementId: deletedId });
@@ -2209,7 +2442,7 @@
         });
 
         textColorInput.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.color = textColorInput.value;
@@ -2218,7 +2451,6 @@
                         contentElement.style.textShadow = generateTextShadowForOutline(outlineThicknessRange.value, textOutlineColorInput.value);
                     }
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    // Throttling for color input
                     if (!dragSendTimeout) {
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2230,11 +2462,10 @@
         });
 
         textBgColorInput.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.backgroundColor = textBgColorInput.value;
-                    // Throttling for color input
                     if (!dragSendTimeout) {
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2246,7 +2477,7 @@
         });
 
         boldTextBtn.addEventListener('click', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.classList.toggle('font-bold');
@@ -2258,7 +2489,7 @@
         });
 
         italicTextBtn.addEventListener('click', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.classList.toggle('italic');
@@ -2270,7 +2501,7 @@
         });
 
         toggleTextBg.addEventListener('change', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const textElement = selectedElementWrapper.querySelector('.element-content');
                 if (textElement && textElement.classList.contains('text-content')) {
                     if (toggleTextBg.checked) {
@@ -2294,7 +2525,7 @@
         });
 
         toggleTextOutline.addEventListener('change', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const textElement = selectedElementWrapper.querySelector('.element-content');
                 if (textElement && textElement.classList.contains('text-content')) {
                     if (toggleTextOutline.checked) {
@@ -2334,13 +2565,12 @@
         });
 
         textOutlineColorInput.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content') && toggleTextOutline.checked) {
                     contentElement.style.webkitTextStrokeColor = textOutlineColorInput.value;
                     contentElement.style.textShadow = generateTextShadowForOutline(outlineThicknessRange.value, textOutlineColorInput.value);
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    // Throttling for color input
                     if (!dragSendTimeout) {
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2352,7 +2582,7 @@
         });
 
         outlineThicknessRange.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content') && toggleTextOutline.checked) {
                     const thickness = outlineThicknessRange.value;
@@ -2362,7 +2592,6 @@
                     contentElement.style.textShadow = generateTextShadowForOutline(thickness, color);
                     outlineThicknessValue.textContent = `${thickness}px`;
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    // Throttling for range input
                     if (!dragSendTimeout) {
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2376,12 +2605,11 @@
         });
 
         fontSizeRange.addEventListener('input', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.fontSize = `${fontSizeRange.value}px`;
                     adjustTextElementWrapperSize(selectedElementWrapper);
-                    // Throttling for range input
                     if (!dragSendTimeout) {
                         dragSendTimeout = setTimeout(() => {
                             sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2394,7 +2622,7 @@
         });
 
         resetOpacityBtn.addEventListener('click', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement) {
                     contentElement.style.opacity = '1';
@@ -2406,7 +2634,7 @@
         });
 
         resetRotationBtn.addEventListener('click', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const currentScale = getElementState(selectedElementWrapper).scale;
                 applyElementTransform(selectedElementWrapper, 0, currentScale);
                 rotationRange.value = 0;
@@ -2416,7 +2644,7 @@
         });
 
         resetSizeBtn.addEventListener('click', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const currentRotation = getElementState(selectedElementWrapper).rotation;
                 applyElementTransform(selectedElementWrapper, currentRotation, 1);
                 sizeRange.value = 1;
@@ -2429,26 +2657,47 @@
         playPauseBtn.addEventListener('click', () => {
             console.log("[PLAY_PAUSE] Play/Pause button clicked.");
             if (selectedAudioElement) {
-                if (selectedAudioElement.paused) {
+                const readyTime = parseFloat(selectedAudioElement.dataset.readyTimestamp || 0);
+                if (readyTime > Date.now()) {
+                    console.warn('Audio not yet ready to play due to delay.');
+                    showConfirmationModal(`Este audio estará disponible para reproducir en ${Math.ceil((readyTime - Date.now()) / 1000)} segundos.`, null);
+                    return;
+                }
+
+                const wasPaused = selectedAudioElement.paused;
+                const targetIsPlaying = wasPaused; 
+
+                if (targetIsPlaying) {
                     allElements.forEach(element => {
                         if (element.tagName === 'AUDIO' && element !== selectedAudioElement && !element.paused) {
                             element.pause();
-                            sendWebSocketMessage('elementUpdate', { element: getElementState(element) });
+                            sendWebSocketMessage('elementUpdate', {
+                                element: {
+                                    ...getElementState(element),
+                                    isPlaying: false,
+                                    paused: true 
+                                }
+                            });
                         }
                     });
                     selectedAudioElement.play().catch(e => {
                         console.error('Error playing audio (possible browser autoplay restriction):', e);
+                        updatePlayPauseButton(true); 
+                        return; 
                     });
                 } else {
                     selectedAudioElement.pause();
                 }
-                updatePlayPauseButton(selectedAudioElement.paused);
+
+                updatePlayPauseButton(!targetIsPlaying); 
                 
-                // Add a small delay before sending the update for audio playback
-                // This gives the browser a moment to process the play/pause request locally.
-                setTimeout(() => {
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
-                }, 50); // 50ms delay
+                const stateToSend = getElementState(selectedAudioElement);
+                stateToSend.isPlaying = targetIsPlaying; 
+                stateToSend.paused = !targetIsPlaying; 
+                stateToSend.currentTime = selectedAudioElement.currentTime; 
+
+                console.log('[PLAY_PAUSE_DEBUG] Sending audio update:', stateToSend); 
+                sendWebSocketMessage('elementUpdate', { element: stateToSend });
             }
         });
 
@@ -2460,23 +2709,27 @@
                 if (parseFloat(volumeRange.value) === 0) {
                     selectedAudioElement.muted = true;
                 } else {
-                    selectedAudioElement.muted = isMutedGlobally; // Keep global mute state respected
+                    selectedAudioElement.muted = isMutedGlobally; 
                 }
                 volumeValueDisplay.textContent = `${Math.round(volumeRange.value * 100)}%`;
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
             }
         });
 
+        // COMENTADO: timelineRange.addEventListener('input', ...); // Event listener para la línea de tiempo está comentado
+        /*
         timelineRange.addEventListener('input', () => {
             if (selectedAudioElement) {
                 selectedAudioElement.currentTime = timelineRange.value;
                 updateTimelineDisplay(selectedAudioElement);
+                // Send immediately on manual scrub, don't throttle
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
             }
         });
+        */
 
         bringToFrontBtn.addEventListener('click', () => {
-            if (selectedElementWrapper) {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 selectedElementWrapper.style.zIndex = getNextHighestZIndex();
                 updateLayersList();
                 selectElement(selectedElementWrapper);
@@ -2498,6 +2751,10 @@
             const mouseYOnUnscaledWrapper = (e.clientY - wrapperRect.top) / currentZoom;
 
             if (clickedWrapper) {
+                if (clickedWrapper.dataset.readyForInteraction === 'false') {
+                    e.preventDefault();
+                    return;
+                }
                 e.stopPropagation();
 
                 if (target.classList.contains('resize-handle')) {
@@ -2548,10 +2805,9 @@
             const currentMouseXOnUnscaledWrapper = (e.clientX - wrapperRect.left) / currentZoom;
             const currentMouseYOnUnscaledWrapper = (e.clientY - wrapperRect.top) / currentZoom;
 
-            if ((isDragging || isResizing || isRotating) && selectedElementWrapper) {
+            if ((isDragging || isResizing || isRotating) && selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 e.preventDefault();
 
-                // Step 1: Smooth local DOM update using requestAnimationFrame
                 if (!pendingDOMUpdateAnimationFrame) {
                     pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
                         if (isDragging) {
@@ -2640,7 +2896,7 @@
                                     tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`;
                                     tempDiv.style.webkitTextStrokeColor = outlineColor;
                                     tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor);
-                                } else {
+                                    } else {
                                     tempDiv.style.webkitTextStrokeWidth = '0';
                                     tempDiv.style.webkitTextStrokeColor = 'transparent';
                                     tempDiv.style.textShadow = 'none';
@@ -2679,7 +2935,6 @@
                             selectedElementWrapper.style.left = `${newLeft}px`;
                             selectedElementWrapper.style.top = `${newTop}px`;
 
-                            // Update initial values for continuous resizing
                             initialMouseX = currentMouseXOnUnscaledWrapper;
                             initialMouseY = currentMouseYOnUnscaledWrapper;
                             initialWidth = newWidth;
@@ -2702,15 +2957,13 @@
                             rotationRange.value = newRotation;
                             rotationValue.textContent = `${Math.round(newRotation)}°`;
 
-                            // Update initial values for continuous rotation
                             initialRotationAngle = currentAngle;
                             initialElementRotation = newRotation;
                         }
-                        pendingDOMUpdateAnimationFrame = null; // Reset for next frame
+                        pendingDOMUpdateAnimationFrame = null; 
                     });
                 }
 
-                // Step 2: Throttled WebSocket update for network efficiency
                 if (!dragSendTimeout) {
                     dragSendTimeout = setTimeout(() => {
                         if (selectedElementWrapper) {
@@ -2724,18 +2977,15 @@
 
         document.addEventListener('mouseup', () => {
             if (isDragging || isResizing || isRotating) {
-                // Clear any pending DOM update frame
                 if (pendingDOMUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
                 }
-                // Clear any pending WebSocket send timeout
                 if (dragSendTimeout) {
                     clearTimeout(dragSendTimeout);
                     dragSendTimeout = null;
                 }
-                // Send final state to ensure consistency
-                if (selectedElementWrapper) {
+                if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
             }
@@ -2756,6 +3006,10 @@
 
             if (e.touches.length === 1) {
                 if (clickedWrapper) {
+                    if (clickedWrapper.dataset.readyForInteraction === 'false') {
+                        e.preventDefault();
+                        return;
+                    }
                     if (target.classList.contains('resize-handle')) {
                         e.preventDefault();
                         isResizing = true;
@@ -2805,10 +3059,9 @@
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
             if (e.touches.length === 1) {
-                if ((isDragging || isResizing || isRotating) && selectedElementWrapper) {
+                if ((isDragging || isResizing || isRotating) && selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     e.preventDefault();
 
-                    // Step 1: Smooth local DOM update using requestAnimationFrame
                     if (!pendingDOMUpdateAnimationFrame) {
                         pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
                             if (isDragging) {
@@ -2936,7 +3189,6 @@
                                 selectedElementWrapper.style.left = `${newLeft}px`;
                                 selectedElementWrapper.style.top = `${newTop}px`;
 
-                                // Update initial values for continuous resizing
                                 initialMouseX = currentTouchXOnUnscaledWrapper;
                                 initialMouseY = currentTouchYOnUnscaledWrapper;
                                 initialWidth = newWidth;
@@ -2959,16 +3211,14 @@
                                 rotationRange.value = newRotation;
                                 rotationValue.textContent = `${Math.round(newRotation)}°`;
 
-                                // Update initial values for continuous rotation
                                 initialRotationAngle = currentAngle;
                                 initialElementRotation = newRotation;
                             }
-                            pendingDOMUpdateAnimationFrame = null; // Reset for next frame
+                            pendingDOMUpdateAnimationFrame = null; 
                         });
                     }
 
-                    // Step 2: Throttled WebSocket update for network efficiency
-                    if (!dragSendTimeout) { // Using the same timeout for touch events
+                    if (!dragSendTimeout) { 
                         dragSendTimeout = setTimeout(() => {
                             if (selectedElementWrapper) {
                                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2982,18 +3232,15 @@
 
         document.addEventListener('touchend', () => {
             if (isDragging || isResizing || isRotating) {
-                // Clear any pending DOM update frame
                 if (pendingDOMUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
                 }
-                // Clear any pending WebSocket send timeout
                 if (dragSendTimeout) {
                     clearTimeout(dragSendTimeout);
                     dragSendTimeout = null;
                 }
-                // Send final state to ensure consistency
-                if (selectedElementWrapper) {
+                if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
             }
@@ -3012,24 +3259,18 @@
                 button.classList.add('active');
                 document.getElementById(`tab-content-${tabId}`).classList.add('active');
 
+                if (selectedAudioElement) {
+                    console.log("[TAB_CHANGE] Deselecting audio element when switching away from audio tab.");
+                    deselectAudioControls();
+                }
+
                 if (tabId === 'audio') {
                     if (selectedElementWrapper) {
                         console.log("[TAB_CHANGE] Deselecting visual element when switching to audio tab.");
-                        deselectAllElements(); // This will also re-enable textInput
-                    }
-                    const firstAudio = Array.from(allElements.values()).find(el => el.tagName === 'AUDIO');
-                    if (firstAudio) {
-                        console.log(`[TAB_CHANGE] Auto-selecting first audio: ${firstAudio.id}`);
-                        selectAudioElement(firstAudio);
+                        deselectAllElements(); 
                     }
                 } else {
-                    if (selectedAudioElement) {
-                        console.log("[TAB_CHANGE] Deselecting audio element when switching away from audio tab.");
-                        deselectAudioControls();
-                    }
-                    // When switching to 'properties' or 'text' tab, ensure text input is always enabled
                     if (tabId === 'properties' || tabId === 'text') {
-                        // textInput.disabled = false; // Already handled by deselectAllElements
                     }
 
                     if (tabId === 'properties' && selectedElementWrapper) {
@@ -3044,6 +3285,11 @@
         layersList.addEventListener('dragstart', (e) => {
             const target = e.target.closest('.layer-item');
             if (target) {
+                const elementOnCanvas = allElements.get(target.dataset.id);
+                if (elementOnCanvas && elementOnCanvas.dataset.readyForInteraction === 'false') {
+                    e.preventDefault(); 
+                    return;
+                }
                 draggedLayer = target;
                 e.dataTransfer.effectAllowed = 'move';
                 setTimeout(() => {
@@ -3121,7 +3367,6 @@
         const confirmationModal = document.createElement('div');
         confirmationModal.id = 'confirmationModal';
         confirmationModal.classList.add('modal-overlay');
-        // Updated modal HTML to have only one "OK" button
         confirmationModal.innerHTML = `
             <div class="modal-dialog">
                 <h3 class="modal-title">Aviso</h3>
@@ -3133,12 +3378,10 @@
         `;
         document.body.appendChild(confirmationModal);
 
-        // Event listener for the new "OK" button
         document.getElementById('confirmOkBtn').addEventListener('click', () => {
             confirmationModal.classList.remove('active');
         });
 
-        // Simplified showConfirmationModal function
         function showConfirmationModal(message, callback) { 
             document.getElementById('confirmationMessage').textContent = message;
             confirmationModal.classList.add('active');
@@ -3149,7 +3392,7 @@
             connectWebSocket();
             loadElementsState();
             mainCanvasWrapper.style.transformOrigin = 'center center';
-            deselectAllElements(); // This will now ensure textInput is enabled by default
+            deselectAllElements(); 
             updateLayersList();
             updateAudioPlaylistDisplay();
             updateFileCountDisplay();
