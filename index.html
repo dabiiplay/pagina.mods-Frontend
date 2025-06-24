@@ -17,8 +17,8 @@
             cursor: grab;
             user-select: none;
             box-sizing: border-box;
-            transition: box-shadow 0.1s ease-in-out;
-            will-change: transform, left, top;
+            transition: box-shadow 0.1s ease-in-out; /* Removed opacity transition */
+            will-change: transform, left, top; /* Removed opacity from will-change */
         }
         .element-wrapper.selected {
             box-shadow: 0 0 0 2px #8B5CF6;
@@ -1000,7 +1000,7 @@
         }
 
         function createElementFromData(data) {
-            console.log(`[CREATE_ELEMENT] Creating element ID: ${data.id}, Type: ${data.type}, ReadyForInteraction: ${data.readyForInteraction}`);
+            console.log(`[CREATE_ELEMENT] Creating element ID: ${data.id}, Type: ${data.type}`);
             if (allElements.has(data.id)) {
                 const existingElement = allElements.get(data.id);
                 if (existingElement.classList && existingElement.classList.contains('element-wrapper')) {
@@ -1025,14 +1025,14 @@
             wrapperDiv.style.top = data.top;
             applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
             wrapperDiv.style.zIndex = data.zIndex;
-            wrapperDiv.style.opacity = data.opacity;
+            wrapperDiv.style.opacity = data.opacity; // Apply opacity from data directly
 
-            // Apply visibility and pointer events based on data.readyForInteraction
-            wrapperDiv.style.visibility = data.readyForInteraction === 'true' ? 'visible' : 'hidden';
-            wrapperDiv.style.pointerEvents = data.readyForInteraction === 'true' ? 'auto' : 'none';
-            wrapperDiv.dataset.readyForInteraction = data.readyForInteraction; // Store the state
+            // Elements are always visible and interactive upon creation from data
+            wrapperDiv.style.visibility = 'visible'; 
+            wrapperDiv.style.pointerEvents = 'auto'; 
+            wrapperDiv.dataset.readyForInteraction = 'true'; // Always true for visual elements from data
 
-            console.log(`[CREATE_ELEMENT] Element ${data.id} visibility set to: ${wrapperDiv.style.visibility}, pointerEvents: ${wrapperDiv.style.pointerEvents}`);
+            console.log(`[CREATE_ELEMENT] Element ${data.id} visibility set to: ${wrapperDiv.style.visibility}, pointerEvents: ${wrapperDiv.style.pointerEvents}, opacity: ${wrapperDiv.style.opacity}`);
 
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
@@ -1092,7 +1092,6 @@
                 return;
             }
 
-            contentElement.style.opacity = data.opacity;
             wrapperDiv.appendChild(contentElement);
             addHandles(wrapperDiv);
             mainCanvasWrapper.appendChild(wrapperDiv);
@@ -1104,7 +1103,7 @@
         }
 
         function createAudioElementAndAddToPlaylist(data) {
-            console.log(`[AUDIO_CREATE] Attempting to create/update audio element: ${data.id}, ReadyForInteraction: ${data.readyForInteraction}`);
+            console.log(`[AUDIO_CREATE] Attempting to create/update audio element: ${data.id}`);
             let audioElement = allElements.get(data.id);
             if (!audioElement) {
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} not found, creating new.`);
@@ -1254,7 +1253,7 @@
 
 
         function updateElementFromData(data) {
-            console.log(`[UPDATE_ELEMENT] Received update for element ID: ${data.id}, type: ${data.type}, readyForInteraction: ${data.readyForInteraction}`);
+            console.log(`[UPDATE_ELEMENT] Received update for element ID: ${data.id}, type: ${data.type}`);
             const element = allElements.get(data.id);
             let contentElement = null; 
 
@@ -1319,27 +1318,17 @@
                 element.style.height = data.height;
                 applyElementTransform(element, data.rotation || 0, data.scale || 1);
                 element.style.zIndex = data.zIndex;
-                element.style.opacity = data.opacity; 
+                element.style.opacity = data.opacity; // Apply opacity from data directly
                 
-                // Control visibility and pointer events based on readyForInteraction
-                const currentReadyState = element.dataset.readyForInteraction;
-                const newReadyState = data.readyForInteraction; 
+                // Elements are always visible and interactive, no visibility/pointerEvents transitions needed
+                element.style.visibility = 'visible'; 
+                element.style.pointerEvents = 'auto'; 
+                element.dataset.readyForInteraction = 'true'; // Always true for visual elements after initial add
 
-                if (newReadyState === 'true' && currentReadyState !== 'true') {
-                    console.log(`[VISIBILITY_CHANGE] Element ${data.id} is now ready, making visible and interactive.`);
-                    element.style.visibility = 'visible';
-                    element.style.pointerEvents = 'auto';
-                } else if (newReadyState !== 'true' && currentReadyState === 'true') { // If new state is not 'true' but current is, hide it
-                    console.log(`[VISIBILITY_CHANGE] Element ${data.id} is no longer ready, making hidden and non-interactive.`);
-                    element.style.visibility = 'hidden';
-                    element.style.pointerEvents = 'none';
-                }
-                element.dataset.readyForInteraction = newReadyState; // Store the new state
-                console.log(`[UPDATE_ELEMENT] Element ${data.id} visibility set to: ${element.style.visibility}, pointerEvents: ${element.style.pointerEvents}`);
+                console.log(`[DEBUG_UPDATE_VISIBILITY] Element ${data.id} applied visibility: ${element.style.visibility}, pointerEvents: ${element.style.pointerEvents}, opacity: ${element.style.opacity}`);
                 
                 contentElement = element.querySelector('.element-content');
                 if (contentElement) {
-                    contentElement.style.opacity = data.opacity;
                     if (data.type === 'text') {
                         contentElement.textContent = data.textContent;
                         contentElement.style.color = data.color;
@@ -1376,7 +1365,7 @@
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
                 if (contentElement) { 
                     console.log(`[UPDATE_ELEMENT] Updating UI for selected visual element ${data.id}`);
-                    opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
+                    opacityRange.value = parseFloat(element.style.opacity) || 1; // Read from wrapper's opacity
                     opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                     rotationRange.value = data.rotation;
                     rotationValue.textContent = `${Math.round(data.rotation)}°`;
@@ -1457,7 +1446,12 @@
                     if (element.isPlaying && element.muted) {
                         element.pause();
                         sendWebSocketMessage('elementUpdate', {
-                            element: { ...getElementState(element), isPlaying: false, paused: true }
+                            element: {
+                                ...getElementState(element),
+                                isPlaying: false,
+                                paused: true 
+                                // Do not update currentTime here, it will be updated by server broadcast
+                            }
                         });
                     }
                 }
@@ -1596,12 +1590,7 @@
             deselectAllElements();
 
             if (element.classList && element.classList.contains('element-wrapper')) {
-                // IMPORTANT: Only select if element is ready for interaction
-                if (element.dataset.readyForInteraction === 'false') {
-                    console.log(`[SELECT_BLOCKED] Element ${element.id} not ready for interaction, cannot select.`);
-                    return;
-                }
-
+                // No need to check readyForInteraction, as elements are always ready for interaction now
                 console.log(`[SELECT] Selecting VISUAL element: ${element.id}`);
                 selectedElementWrapper = element;
                 selectedElementWrapper.classList.add('selected');
@@ -1630,7 +1619,7 @@
                 resetRotationBtn.disabled = false;
                 bringToFrontBtn.disabled = false;
 
-                opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
+                opacityRange.value = parseFloat(selectedElementWrapper.style.opacity) || 1; // Read from wrapper's opacity
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                 
                 const elementState = getElementState(selectedElementWrapper);
@@ -1829,14 +1818,9 @@
                 }
                 layerItem.textContent = name;
 
-                // Indicate pending state for layer items that are not ready
-                if (elementWrapper.dataset.readyForInteraction === 'false') {
-                    layerItem.style.opacity = '0.5'; // Indicate pending state
-                    layerItem.style.pointerEvents = 'none'; // Make it non-clickable
-                } else {
-                    layerItem.style.opacity = '1';
-                    layerItem.style.pointerEvents = 'auto';
-                }
+                // Layer items are always active now for visual elements
+                layerItem.style.opacity = '1';
+                layerItem.style.pointerEvents = 'auto';
 
                 if (selectedElementWrapper && selectedElementWrapper.id === elementWrapper.id) {
                     layerItem.classList.add('selected');
@@ -1960,12 +1944,14 @@
                 wrapperDiv.style.minHeight = '30px';
                 wrapperDiv.style.zIndex = getNextHighestZIndex();
                 applyElementTransform(wrapperDiv, 0, 1);
-                wrapperDiv.style.opacity = '1';
+                wrapperDiv.style.opacity = '1'; // Default to full opacity
                 
-                // Set initial state to hidden and non-interactive, awaiting server confirmation
-                wrapperDiv.style.visibility = 'hidden'; 
-                wrapperDiv.style.pointerEvents = 'none'; 
-                wrapperDiv.dataset.readyForInteraction = 'false'; // Set to false locally
+                // Elements are always visible and interactive upon creation
+                wrapperDiv.style.visibility = 'visible'; 
+                wrapperDiv.style.pointerEvents = 'auto'; 
+                wrapperDiv.dataset.readyForInteraction = 'true'; // Set to true locally
+                console.log(`[DEBUG_LOCAL_CREATE] Visual element ${newId} created locally. Initial visibility: ${wrapperDiv.style.visibility}, pointerEvents: ${wrapperDiv.style.pointerEvents}, dataset.readyForInteraction: ${wrapperDiv.dataset.readyForInteraction}, opacity: ${wrapperDiv.style.opacity}`);
+
 
                 const contentElement = document.createElement('img');
                 contentElement.src = srcData;
@@ -1974,6 +1960,7 @@
                 wrapperDiv.appendChild(contentElement);
                 
                 contentElement.onload = () => {
+                    console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
                     const defaultInitialSize = 200;
                     let finalWidth = contentElement.naturalWidth;
                     let finalHeight = contentElement.naturalHeight;
@@ -2001,7 +1988,7 @@
                     
                     addHandles(wrapperDiv);
                     
-                    mainCanvasWrapper.appendChild(wrapperDiv); // Add to DOM, but hidden initially
+                    mainCanvasWrapper.appendChild(wrapperDiv); 
                     allElements.set(wrapperDiv.id, wrapperDiv);
 
                     wrapperDiv.dataset.initialAspectRatio = aspectRatio;
@@ -2018,12 +2005,12 @@
                         rotation: 0,
                         scale: 1,
                         zIndex: wrapperDiv.style.zIndex,
-                        opacity: '1',
+                        opacity: '1', // Sent as 1
                         type: file.type.startsWith('image/gif') ? 'gif' : 'img', 
                         src: srcData,
                         initialAspectRatio: aspectRatio,
-                        visibility: 'hidden', // Still hidden locally for sending
-                        readyForInteraction: 'false' // Explicitly false for sending
+                        visibility: 'visible', // Sent as visible
+                        readyForInteraction: 'true' // Explicitly true for sending
                     };
                     console.log(`[LOCAL_CREATE_AND_SEND] Sending visual element to server with readyForInteraction: ${elementState.readyForInteraction}`);
                     sendWebSocketMessage('elementAdd', { element: elementState });
@@ -2043,9 +2030,7 @@
                 audioElement.dataset.originalName = file.name;
                 audioElement.dataset.type = 'audio';
                 audioElement.dataset.readyTimestamp = Date.now() + AUDIO_PLAY_DELAY_MS; 
-                audioElement.dataset.readyForInteraction = 'false'; // Set to false locally
-                audioElement.preload = "metadata"; // Changed to "metadata"
-
+                audioElement.dataset.readyForInteraction = 'false'; // Audio still waits for readiness
                 if (audioDuration !== null) {
                     audioElement.duration = audioDuration; 
                 }
@@ -2139,21 +2124,21 @@
             wrapperDiv.style.minHeight = '30px';
             wrapperDiv.style.zIndex = getNextHighestZIndex();
             applyElementTransform(wrapperDiv, 0, 1);
-            wrapperDiv.style.opacity = '1';
+            wrapperDiv.style.opacity = '1'; // Default to full opacity
             wrapperDiv.style.width = 'auto';
             wrapperDiv.style.height = 'auto';
             wrapperDiv.dataset.originalName = 'Text Element';
-            // Set initial state to hidden and non-interactive, awaiting server confirmation
-            wrapperDiv.dataset.readyForInteraction = 'false'; // Set to false locally
-            wrapperDiv.style.visibility = 'hidden'; 
-            wrapperDiv.style.pointerEvents = 'none';
+            // Elements are always visible and interactive upon creation
+            wrapperDiv.dataset.readyForInteraction = 'true'; // Set to true locally
+            wrapperDiv.style.visibility = 'visible'; 
+            wrapperDiv.style.pointerEvents = 'auto';
+            console.log(`[DEBUG_LOCAL_CREATE] Text element ${newId} created locally. Initial visibility: ${wrapperDiv.style.visibility}, pointerEvents: ${wrapperDiv.style.pointerEvents}, dataset.readyForInteraction: ${wrapperDiv.dataset.readyForInteraction}, opacity: ${wrapperDiv.style.opacity}`);
 
 
             const textDiv = document.createElement('div');
             textDiv.classList.add('element-content', 'text-content', 'text-lg');
             textDiv.contentEditable = true;
             textDiv.textContent = textContent;
-            textDiv.style.opacity = '1';
             textDiv.spellcheck = false;
 
             textDiv.style.color = textColorInput.value;
@@ -2187,7 +2172,7 @@
 
             wrapperDiv.appendChild(textDiv);
             addHandles(wrapperDiv);
-            mainCanvasWrapper.appendChild(wrapperDiv); // Add to DOM, but hidden initially
+            mainCanvasWrapper.appendChild(wrapperDiv); 
             allElements.set(wrapperDiv.id, wrapperDiv);
             adjustTextElementWrapperSize(wrapperDiv);
             // Don't focus immediately, as it's hidden
@@ -2205,7 +2190,7 @@
                 rotation: 0,
                 scale: 1,
                 zIndex: wrapperDiv.style.zIndex,
-                opacity: textDiv.style.opacity,
+                opacity: '1', // Sent as 1
                 originalName: wrapperDiv.dataset.originalName,
                 type: 'text',
                 textContent: textDiv.textContent,
@@ -2218,16 +2203,16 @@
                 outlineColor: textDiv.style.webkitTextStrokeColor,
                 hasTextBackground: (textDiv.style.backgroundColor !== 'transparent'),
                 hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0),
-                visibility: 'hidden', // Still hidden locally for sending
-                readyForInteraction: 'false' // Explicitly false for sending
+                visibility: 'visible', // Sent as visible
+                readyForInteraction: 'true' // Explicitly true for sending
             };
             console.log(`[LOCAL_CREATE_AND_SEND] Sending text element to server with readyForInteraction: ${elementState.readyForInteraction}`);
             sendWebSocketMessage('elementAdd', { element: elementState });
         });
 
         textInput.addEventListener('input', () => {
-            // Only update and send if selected element is ready for interaction
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            // Element is always ready for interaction now
+            if (selectedElementWrapper) { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.textContent = textInput.value;
@@ -2286,10 +2271,10 @@
                     width: element.style.width,
                     height: element.style.height,
                     zIndex: element.style.zIndex,
-                    opacity: contentElement.style.opacity,
+                    opacity: element.style.opacity, // Read opacity from wrapperDiv
                     originalName: element.dataset.originalName || '',
-                    visibility: element.style.visibility || 'visible', 
-                    readyForInteraction: element.dataset.readyForInteraction || 'true' 
+                    visibility: 'visible', // Always visible
+                    readyForInteraction: 'true' // Always ready
                 };
 
                 const transform = element.style.transform;
@@ -2324,8 +2309,8 @@
                     state.isItalic = contentElement.classList.contains('italic');
                     state.outlineThickness = contentElement.style.webkitTextStrokeWidth;
                     state.outlineColor = contentElement.style.webkitTextStrokeColor;
-                    state.hasTextBackground = (contentElement.style.backgroundColor !== 'transparent');
-                    state.hasTextOutline = (parseFloat(contentElement.style.webkitTextStrokeWidth) > 0);
+                    state.hasTextBackground = (contentElement.style.backgroundColor !== 'transparent'); 
+                    state.hasTextOutline = (parseFloat(contentElement.style.webkitTextStrokeWidth) > 0); 
                 }
                 return state;
             }
@@ -2334,23 +2319,21 @@
         }
 
         opacityRange.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
-                const contentElement = selectedElementWrapper.querySelector('.element-content');
-                if (contentElement) {
-                    contentElement.style.opacity = opacityRange.value;
-                    opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
-                    if (!dragSendTimeout) {
-                        dragSendTimeout = setTimeout(() => {
-                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                            dragSendTimeout = null;
-                        }, DRAG_SEND_THROTTLE_MS);
-                    }
+            if (selectedElementWrapper) { // Element is always ready for interaction now
+                // Opacity is now on wrapperDiv
+                selectedElementWrapper.style.opacity = opacityRange.value;
+                opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
+                if (!dragSendTimeout) {
+                    dragSendTimeout = setTimeout(() => {
+                        sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                        dragSendTimeout = null;
+                    }, DRAG_SEND_THROTTLE_MS);
                 }
             }
         });
 
         rotationRange.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const currentScale = getElementState(selectedElementWrapper).scale;
                 const newRotation = parseFloat(rotationRange.value);
                 applyElementTransform(selectedElementWrapper, newRotation, currentScale);
@@ -2365,7 +2348,7 @@
         });
 
         sizeRange.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const currentRotation = getElementState(selectedElementWrapper).rotation;
                 const newScale = parseFloat(sizeRange.value);
                 applyElementTransform(selectedElementWrapper, currentRotation, newScale);
@@ -2385,7 +2368,7 @@
                 console.warn(`File upload limit reached (${fileLimit} files).`);
                 return;
             }
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 if (selectedElementWrapper.tagName === 'AUDIO') {
                     console.warn('Audio elements cannot be duplicated from the canvas.');
                     return;
@@ -2421,12 +2404,14 @@
                     clonedWrapper.dataset.publicId = originalState.publicId;
                 }
 
-                // New cloned element also starts as hidden, awaiting server confirmation
-                clonedWrapper.dataset.readyForInteraction = 'false'; // Set to false locally
-                clonedWrapper.style.visibility = 'hidden';
-                clonedWrapper.style.pointerEvents = 'none';
-                
-                mainCanvasWrapper.appendChild(clonedWrapper); // Add to DOM, but hidden initially
+                // New cloned element is always visible and interactive
+                clonedWrapper.dataset.readyForInteraction = 'true'; // Set to true locally
+                clonedWrapper.style.visibility = 'visible';
+                clonedWrapper.style.pointerEvents = 'auto';
+                clonedWrapper.style.opacity = '1'; // Ensure it starts at full opacity
+                console.log(`[DEBUG_LOCAL_CREATE] Cloned visual element ${newId} created locally. Initial visibility: ${clonedWrapper.style.visibility}, pointerEvents: ${clonedWrapper.style.pointerEvents}, dataset.readyForInteraction: ${clonedWrapper.dataset.readyForInteraction}, opacity: ${clonedWrapper.style.opacity}`);
+
+                mainCanvasWrapper.appendChild(clonedWrapper); 
                 allElements.set(newId, clonedWrapper);
 
                 updateLayersList();
@@ -2434,8 +2419,9 @@
                 // Don't select immediately, wait for server broadcast
                 
                 const clonedState = getElementState(clonedWrapper);
-                clonedState.visibility = 'hidden'; // Ensure it's sent as hidden
-                clonedState.readyForInteraction = 'false'; // Ensure it's sent as not ready
+                clonedState.visibility = 'visible'; // Ensure it's sent as visible
+                clonedState.readyForInteraction = 'true'; // Ensure it's sent as ready
+                clonedState.opacity = '1'; // Ensure it's sent as 1
                 console.log(`[DUPLICATE] Sending cloned element to server with readyForInteraction: ${clonedState.readyForInteraction}`);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
             }
@@ -2443,7 +2429,7 @@
 
         deleteElementBtn.addEventListener('click', () => {
             console.log("[DELETE_ELEMENT] Delete element (visual) button clicked.");
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const deletedId = selectedElementWrapper.id;
                 deleteElementFromData(deletedId);
                 sendWebSocketMessage('elementDelete', { elementId: deletedId });
@@ -2453,7 +2439,7 @@
         });
 
         textColorInput.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.color = textColorInput.value;
@@ -2473,7 +2459,7 @@
         });
 
         textBgColorInput.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.backgroundColor = textBgColorInput.value;
@@ -2488,7 +2474,7 @@
         });
 
         boldTextBtn.addEventListener('click', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.classList.toggle('font-bold');
@@ -2500,7 +2486,7 @@
         });
 
         italicTextBtn.addEventListener('click', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.classList.toggle('italic');
@@ -2512,7 +2498,7 @@
         });
 
         toggleTextBg.addEventListener('change', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const textElement = selectedElementWrapper.querySelector('.element-content');
                 if (textElement && textElement.classList.contains('text-content')) {
                     if (toggleTextBg.checked) {
@@ -2536,7 +2522,7 @@
         });
 
         toggleTextOutline.addEventListener('change', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const textElement = selectedElementWrapper.querySelector('.element-content');
                 if (textElement && textElement.classList.contains('text-content')) {
                     if (toggleTextOutline.checked) {
@@ -2576,7 +2562,7 @@
         });
 
         textOutlineColorInput.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content') && toggleTextOutline.checked) {
                     contentElement.style.webkitTextStrokeColor = textOutlineColorInput.value;
@@ -2593,7 +2579,7 @@
         });
 
         outlineThicknessRange.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content') && toggleTextOutline.checked) {
                     const thickness = outlineThicknessRange.value;
@@ -2616,7 +2602,7 @@
         });
 
         fontSizeRange.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.style.fontSize = `${fontSizeRange.value}px`;
@@ -2633,19 +2619,17 @@
         });
 
         resetOpacityBtn.addEventListener('click', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
-                const contentElement = selectedElementWrapper.querySelector('.element-content');
-                if (contentElement) {
-                    contentElement.style.opacity = '1';
-                    opacityRange.value = 1;
-                    opacityValue.textContent = '100%';
-                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
-                }
+            if (selectedElementWrapper) { // Element is always ready for interaction now
+                // Opacity is now on wrapperDiv
+                selectedElementWrapper.style.opacity = '1';
+                opacityRange.value = 1;
+                opacityValue.textContent = '100%';
+                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
             }
         });
 
         resetRotationBtn.addEventListener('click', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const currentScale = getElementState(selectedElementWrapper).scale;
                 applyElementTransform(selectedElementWrapper, 0, currentScale);
                 rotationRange.value = 0;
@@ -2655,7 +2639,7 @@
         });
 
         resetSizeBtn.addEventListener('click', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 const currentRotation = getElementState(selectedElementWrapper).rotation;
                 applyElementTransform(selectedElementWrapper, currentRotation, 1);
                 sizeRange.value = 1;
@@ -2728,7 +2712,7 @@
         });
 
         bringToFrontBtn.addEventListener('click', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if (selectedElementWrapper) { // Element is always ready for interaction now
                 selectedElementWrapper.style.zIndex = getNextHighestZIndex();
                 updateLayersList();
                 selectElement(selectedElementWrapper);
@@ -2750,11 +2734,7 @@
             const mouseYOnUnscaledWrapper = (e.clientY - wrapperRect.top) / currentZoom;
 
             if (clickedWrapper) {
-                if (clickedWrapper.dataset.readyForInteraction === 'false') {
-                    e.preventDefault();
-                    console.log(`[MOUSEDOWN_BLOCKED] Element ${clickedWrapper.id} not ready for interaction.`);
-                    return;
-                }
+                // No need to check readyForInteraction, as elements are always ready for interaction
                 e.stopPropagation();
 
                 if (target.classList.contains('resize-handle')) {
@@ -2805,7 +2785,7 @@
             const currentMouseXOnUnscaledWrapper = (e.clientX - wrapperRect.left) / currentZoom;
             const currentMouseYOnUnscaledWrapper = (e.clientY - wrapperRect.top) / currentZoom;
 
-            if ((isDragging || isResizing || isRotating) && selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+            if ((isDragging || isResizing || isRotating) && selectedElementWrapper) { // Element is always ready for interaction now
                 e.preventDefault();
 
                 if (!pendingDOMUpdateAnimationFrame) {
@@ -2985,7 +2965,7 @@
                     clearTimeout(dragSendTimeout);
                     dragSendTimeout = null;
                 }
-                if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+                if (selectedElementWrapper) { // Element is always ready for interaction now
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
             }
@@ -3006,12 +2986,7 @@
 
             if (e.touches.length === 1) {
                 if (clickedWrapper) {
-                    // Prevent interaction if not ready
-                    if (clickedWrapper.dataset.readyForInteraction === 'false') {
-                        e.preventDefault();
-                        console.log(`[TOUCHSTART_BLOCKED] Element ${clickedWrapper.id} not ready for interaction.`);
-                        return;
-                    }
+                    // No need to check readyForInteraction, elements are always ready
                     if (target.classList.contains('resize-handle')) {
                         e.preventDefault();
                         isResizing = true;
@@ -3061,7 +3036,7 @@
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
             if (e.touches.length === 1) {
-                if ((isDragging || isResizing || isRotating) && selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+                if ((isDragging || isResizing || isRotating) && selectedElementWrapper) { // Element is always ready for interaction now
                     e.preventDefault();
 
                     if (!pendingDOMUpdateAnimationFrame) {
@@ -3242,7 +3217,7 @@
                     clearTimeout(dragSendTimeout);
                     dragSendTimeout = null;
                 }
-                if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+                if (selectedElementWrapper) { // Element is always ready for interaction now
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
             }
@@ -3277,13 +3252,8 @@
 
                     if (tabId === 'properties' && selectedElementWrapper) {
                         console.log("[TAB_CHANGE] Re-selecting previously selected visual element.");
-                        // Only select if it's ready for interaction
-                        if (selectedElementWrapper.dataset.readyForInteraction === 'true') {
-                            selectElement(selectedElementWrapper);
-                        } else {
-                            // If it's not ready, deselect it
-                            deselectAllElements();
-                        }
+                        // Element is always ready for interaction now
+                        selectElement(selectedElementWrapper);
                     }
                 }
             });
@@ -3294,12 +3264,7 @@
             const target = e.target.closest('.layer-item');
             if (target) {
                 const elementOnCanvas = allElements.get(target.dataset.id);
-                // Prevent dragging if element is not ready for interaction
-                if (elementOnCanvas && elementOnCanvas.dataset.readyForInteraction === 'false') {
-                    e.preventDefault(); 
-                    console.log(`[DRAG_BLOCKED] Element ${elementOnCanvas.id} not ready for interaction, cannot drag.`);
-                    return;
-                }
+                // No need to prevent dragging if element is not ready, as they are always ready now
                 draggedLayer = target;
                 e.dataTransfer.effectAllowed = 'move';
                 setTimeout(() => {
@@ -3337,8 +3302,8 @@
                 layersInNewOrder.forEach((layerItem, index) => {
                     if (layerItem.dataset.id) {
                         const elementWrapper = allElements.get(layerItem.dataset.id);
-                        // Ensure only ready elements are sent for reorder, and update their zIndex
-                        if (elementWrapper && elementWrapper.dataset.readyForInteraction === 'true') {
+                        // Elements are always ready, so no check needed here.
+                        if (elementWrapper) {
                             const newZIndex = maxZ - index;
                             elementWrapper.style.zIndex = newZIndex;
                             updatedElementsForReorder.push({ id: elementWrapper.id, zIndex: newZIndex });
