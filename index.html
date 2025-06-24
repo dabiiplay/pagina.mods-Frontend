@@ -697,7 +697,7 @@
         let dragSendTimeout = null; // Throttle timeout variable
         let pendingDOMUpdateAnimationFrame = null; // Variable to control requestAnimationFrame for updates
 
-        // Constants for delays
+        // Constants for delays - Visual elements still have a delay for appearance
         const ELEMENT_VISIBILITY_DELAY_MS = 2000; // 2 seconds delay for visual elements
 
         function connectWebSocket() {
@@ -778,11 +778,14 @@
                         updateElementFromData(message.element);
                     } else {
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new, creating it.`);
+                        // For audio, `createAudioElementAndAddToPlaylist` now handles the delay check internally
+                        // If it's an audio from another client, it will be added to the UI immediately but controlled by readyForInteraction
+                        // If it's a visual element, it's handled by createElementFromData
                         if (message.element.type === 'audio') {
                             if (!message.element.readyTimestamp) {
                                 message.element.readyTimestamp = Date.now();
                             }
-                            createAudioElementAndAddToPlaylist(message.element);
+                            createAudioElementAndAddToPlaylist(message.element); // This will add to UI immediately for remote clients
                         } else {
                             createElementFromData(message.element);
                         }
@@ -1166,6 +1169,12 @@
                 });
 
                 allElements.set(audioElement.id, audioElement);
+                // NOT calling addAudioItemToPlaylistUI here for local uploads, it's delayed.
+                // For remote elements, it should be added immediately.
+                if (data.isLocalUpload !== true) { // Only add to playlist immediately if not a local upload
+                    addAudioItemToPlaylistUI(audioElement);
+                }
+
                 console.log(`[AUDIO_CREATE] Audio element ${audioElement.id} added to allElements. Map size: ${allElements.size}`);
             } else {
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} already exists, updating properties.`);
@@ -1597,6 +1606,8 @@
             const readyTime = parseFloat(audioElement.dataset.readyTimestamp || 0);
             const currentTime = Date.now();
             const rawTimeDiff = readyTime - currentTime;
+            // The audio countdown is primarily for visual elements now.
+            // For audio elements, we expect them to be ready immediately.
             const timeRemaining = Math.max(0, Math.ceil(rawTimeDiff / 1000));
 
             console.log(`[CHECK_AUDIO_READY] Audio: ${audioElement.id}`);
@@ -1619,41 +1630,53 @@
                 return;
             }
 
-            // If not readyForInteraction === 'true'
-            // Show countdown and disable button
-            playPauseBtn.disabled = true;
-            audioCountdown.style.display = 'block';
-            audioCountdown.textContent = `Reproducción en ${timeRemaining} segundos...`;
+            // If not readyForInteraction === 'true' and there's still a future delay, show countdown and disable button
+            if (rawTimeDiff > 0) { // Only show countdown if time is actually remaining
+                playPauseBtn.disabled = true;
+                audioCountdown.style.display = 'block';
+                audioCountdown.textContent = `Reproducción en ${timeRemaining} segundos...`;
 
-            if (audioCountdownInterval) { // Clear existing interval before setting new one
-                clearInterval(audioCountdownInterval);
-            }
-            audioCountdownInterval = setInterval(() => {
-                const newRawTimeDiff = readyTime - Date.now();
-                const newTimeRemaining = Math.max(0, Math.ceil(newRawTimeDiff / 1000));
-                
-                console.log(`[COUNTDOWN_INTERVAL] Audio: ${audioElement.id}, New Time Remaining: ${newTimeRemaining}s`);
-
-                if (newTimeRemaining > 0) {
-                    audioCountdown.textContent = `Reproducción en ${newTimeRemaining} segundos...`;
-                } else {
+                if (audioCountdownInterval) { // Clear existing interval before setting new one
                     clearInterval(audioCountdownInterval);
-                    audioCountdownInterval = null;
-                    audioCountdown.style.display = 'none';
-                    audioCountdown.textContent = '';
-                    playPauseBtn.disabled = false; 
-                    
-                    // This part is the fallback to ensure readiness if somehow not set by server
-                    if (audioElement.dataset.readyForInteraction !== 'true') {
-                        audioElement.dataset.readyForInteraction = 'true';
-                        // Send an update to the server to ensure consistency for other clients
-                        const updatedState = getElementState(audioElement);
-                        updatedState.readyForInteraction = 'true';
-                        sendWebSocketMessage('elementUpdate', { element: updatedState });
-                        console.log(`[COUNTDOWN_INTERVAL] Audio ${audioElement.id} countdown finished, forced ready, sending update.`);
-                    }
                 }
-            }, 1000);
+                audioCountdownInterval = setInterval(() => {
+                    const newRawTimeDiff = readyTime - Date.now();
+                    const newTimeRemaining = Math.max(0, Math.ceil(newRawTimeDiff / 1000));
+                    
+                    console.log(`[COUNTDOWN_INTERVAL] Audio: ${audioElement.id}, New Time Remaining: ${newTimeRemaining}s`);
+
+                    if (newTimeRemaining > 0) {
+                        audioCountdown.textContent = `Reproducción en ${newTimeRemaining} segundos...`;
+                    } else {
+                        clearInterval(audioCountdownInterval);
+                        audioCountdownInterval = null;
+                        audioCountdown.style.display = 'none';
+                        audioCountdown.textContent = '';
+                        playPauseBtn.disabled = false; 
+                        
+                        // This part is the fallback to ensure readiness if somehow not set by server
+                        if (audioElement.dataset.readyForInteraction !== 'true') {
+                            audioElement.dataset.readyForInteraction = 'true';
+                            // Send an update to the server to ensure consistency for other clients
+                            const updatedState = getElementState(audioElement);
+                            updatedState.readyForInteraction = 'true';
+                            sendWebSocketMessage('elementUpdate', { element: updatedState });
+                            console.log(`[COUNTDOWN_INTERVAL] Audio ${audioElement.id} countdown finished, forced ready, sending update.`);
+                        }
+                    }
+                }, 1000);
+            } else { // If not readyForInteraction === 'true' but no time remaining, immediately enable and mark as ready
+                audioCountdown.style.display = 'none';
+                audioCountdown.textContent = '';
+                playPauseBtn.disabled = false; 
+                if (audioElement.dataset.readyForInteraction !== 'true') {
+                    audioElement.dataset.readyForInteraction = 'true';
+                    const updatedState = getElementState(audioElement);
+                    updatedState.readyForInteraction = 'true';
+                    sendWebSocketMessage('elementUpdate', { element: updatedState });
+                    console.log(`[CHECK_AUDIO_READY] Audio ${audioElement.id} was not ready, but its timestamp is past. Forcing ready and sending update.`);
+                }
+            }
         }
 
 
@@ -1928,8 +1951,12 @@
             console.log("[AUDIO_PLAYLIST] Updating audio playlist display.");
             audioPlaylist.innerHTML = '';
 
-            const audioElements = Array.from(allElements.values()).filter(el => el.tagName === 'AUDIO');
-            console.log(`[AUDIO_PLAYLIST] Found ${audioElements.length} audio elements.`);
+            // Filter for audio elements that are actually meant to be displayed in the playlist
+            // Only display elements that are "readyForInteraction" (meaning they've passed their initial load delay)
+            const audioElements = Array.from(allElements.values()).filter(el => 
+                el.tagName === 'AUDIO' && el.dataset.readyForInteraction === 'true'
+            );
+            console.log(`[AUDIO_PLAYLIST] Found ${audioElements.length} audio elements ready for display.`);
 
             if (audioElements.length === 0) {
                 audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
@@ -1997,7 +2024,7 @@
                         });
 
                         audioReadyPromise.then(duration => {
-                            createLocalElementAndSend(file, e.target.result, duration);
+                            createLocalElementAndSend(file, e.target.result, duration, true); // Pass true for isLocalUpload
                         }).catch(error => {
                             console.error('Failed to process audio file:', error);
                         });
@@ -2011,7 +2038,7 @@
             }
         }
 
-        function createLocalElementAndSend(file, srcData, audioDuration = null) {
+        function createLocalElementAndSend(file, srcData, audioDuration = null, isLocalUpload = false) { // Added isLocalUpload parameter
             const newId = generateUniqueId();
             let elementState = {
                 id: newId,
@@ -2122,104 +2149,33 @@
                 audioElement.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
                 audioElement.dataset.originalName = file.name;
                 audioElement.dataset.type = 'audio';
-                audioElement.dataset.readyTimestamp = Date.now() + ELEMENT_VISIBILITY_DELAY_MS; // Apply delay to audio too
-                audioElement.dataset.readyForInteraction = 'false'; // Audio still waits for readiness
+                audioElement.dataset.readyTimestamp = Date.now(); // NO DELAY FOR AUDIO
+                audioElement.dataset.readyForInteraction = 'true'; // Audio is ready immediately
                 if (audioDuration !== null) {
                     audioElement.duration = audioDuration; 
                 }
 
                 allElements.set(audioElement.id, audioElement); 
-                addAudioItemToPlaylistUI(audioElement);
-                updateFileCountDisplay();
-                
-                let isNewLocalAudioBeingPrepared = true;
+                updateFileCountDisplay(); // Update count immediately when added to map
+                addAudioItemToPlaylistUI(audioElement); // Add to UI immediately
 
-                audioElement.addEventListener('canplaythrough', function onCanPlayThroughPrep() {
-                    if (!isNewLocalAudioBeingPrepared) return; 
-                    console.log(`[AUDIO_PREP] Audio ${audioElement.id} canplaythrough for initial prep.`);
-                    audioElement.removeEventListener('canplaythrough', onCanPlayThroughPrep); 
-
-                    // Siempre intentar reproducir para que OBS lo detecte, incluso si está muted.
-                    audioElement.play().then(() => {
-                        console.log(`[AUDIO_PREP] Quick play successful for ${audioElement.id}, now pausing.`);
-                        audioElement.pause();
-                        audioElement.currentTime = 0; 
-                        console.log(`[AUDIO_PREP] Quick play/pause successful for ${audioElement.id}. Audio should be ready.`);
-                        isNewLocalAudioBeingPrepared = false; 
-
-                        const finalElementState = {
-                            ...elementState, 
-                            type: 'audio',
-                            src: srcData,
-                            volume: audioElement.volume,
-                            currentTime: audioElement.currentTime,
-                            paused: audioElement.paused,
-                            isPlaying: !audioElement.paused,
-                            duration: audioElement.duration,
-                            lastVolume: audioElement.dataset.lastVolume,
-                            // NO ENVIAMOS `muted` al servidor, es una preferencia LOCAL.
-                            readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), 
-                            left: '0px', top: '0px', width: '0px', height: '0px', 
-                            rotation: 0, scale: 1, zIndex: 0, opacity: 1, 
-                            visibility: 'hidden', // Audio is not visible on canvas, just logically 'hidden' from interaction till ready
-                            readyForInteraction: 'false' // Explicitly false for sending
-                        };
-                        console.log(`[LOCAL_CREATE_AND_SEND] Sending audio element to server with readyForInteraction: ${finalElementState.readyForInteraction}, readyTimestamp: ${finalElementState.readyTimestamp}`);
-                        sendWebSocketMessage('elementAdd', { element: finalElementState });
-
-                        // Set local timer for audio readiness (for play button activation)
-                        setTimeout(() => {
-                            console.log(`[AUDIO_READINESS] Audio ${newId} is now ready for interaction.`);
-                            audioElement.dataset.readyForInteraction = 'true';
-                            if (selectedAudioElement && selectedAudioElement.id === newId) {
-                                checkAudioReadyState(selectedAudioElement); // Re-check button state if selected
-                            }
-                            updateAudioPlaylistDisplay(); // Update playlist UI to reflect readiness
-
-                            // NEW: Send update to server that this audio is now ready for interaction
-                            const updatedState = getElementState(audioElement);
-                            updatedState.readyForInteraction = 'true'; // Ensure this is explicitly true for the server update
-                            console.log(`[LOCAL_CREATE_AND_SEND] Sending update to server: audio ${newId} is now ready for interaction.`);
-                            sendWebSocketMessage('elementUpdate', { element: updatedState });
+                // Send initial state to server immediately (now it's ready)
+                const initialElementState = {
+                    ...elementState,
+                    type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime,
+                    paused: true, isPlaying: false, duration: audioDuration || 0, lastVolume: audioElement.dataset.lastVolume,
+                    readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), 
+                    left: '0px', top: '0px', width: '0px', height: '0px',
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', 
+                    readyForInteraction: 'true', // Explicitly true for sending initially
+                    isLocalUpload: true 
+                };
+                console.log(`[LOCAL_CREATE_AND_SEND] Sending initial audio element state to server (ready immediately):`, initialElementState);
+                sendWebSocketMessage('elementAdd', { element: initialElementState });
 
 
-                        }, ELEMENT_VISIBILITY_DELAY_MS);
-
-
-                    }).catch(e => {
-                        console.warn(`[AUDIO_PREP_ERROR] Failed quick play/pause for ${audioElement.id}:`, e);
-                        isNewLocalAudioBeingPrepared = false; 
-                        
-                        // If prep fails, still send the initial state to server, but log the warning.
-                        const finalElementState = {
-                            ...elementState,
-                            type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime, paused: audioElement.paused, isPlaying: !audioElement.paused, duration: audioElement.duration, lastVolume: audioElement.dataset.lastVolume,
-                            // NO ENVIAMOS `muted` al servidor, es una preferencia LOCAL.
-                            readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), left: '0px', top: '0px', width: '0px', height: '0px', rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', readyForInteraction: 'false'
-                        };
-                        console.log(`[LOCAL_CREATE_AND_SEND] Sending audio element to server with readyForInteraction: ${finalElementState.readyForInteraction}, readyTimestamp: ${finalElementState.readyTimestamp} (after prep error)`);
-                        sendWebSocketMessage('elementAdd', { element: finalElementState });
-
-                        // Even if play fails, still schedule it to be ready after delay for UI consistency
-                        setTimeout(() => {
-                            console.log(`[AUDIO_READINESS] Audio ${newId} (after prep error) is now ready for interaction.`);
-                            audioElement.dataset.readyForInteraction = 'true';
-                            if (selectedAudioElement && selectedAudioElement.id === newId) {
-                                checkAudioReadyState(selectedAudioElement);
-                            }
-                            updateAudioPlaylistDisplay();
-
-                            // NEW: Send update to server that this audio is now ready for interaction even after prep error
-                            const updatedState = getElementState(audioElement);
-                            updatedState.readyForInteraction = 'true';
-                            console.log(`[LOCAL_CREATE_AND_SEND] Sending update to server: audio ${newId} is now ready for interaction (after prep error).`);
-                            sendWebSocketMessage('elementUpdate', { element: updatedState });
-
-                        }, ELEMENT_VISIBILITY_DELAY_MS);
-                    });
-                });
-
-                audioElement.load(); // Start loading the audio immediately to trigger canplaythrough
+                // No need for canplaythrough preparation if it's already considered ready for interaction
+                // The `play()` and `pause()` calls are now part of regular interaction.
             }
         }
 
@@ -2402,7 +2358,8 @@
                     left: '0px', top: '0px', width: '0px', height: '0px', // Los elementos de audio no tienen posición visual
                     rotation: 0, scale: 1, zIndex: 0, opacity: 1, // Propiedades visuales predeterminadas para audio no visual
                     visibility: 'hidden', // El audio no es visible en el lienzo
-                    readyForInteraction: element.dataset.readyForInteraction || 'true' // Refleja el estado de preparación actual
+                    readyForInteraction: element.dataset.readyForInteraction || 'true', // Refleja el estado de preparación actual
+                    isLocalUpload: element.dataset.isLocalUpload === 'true' ? true : false // Include local upload status
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -2814,7 +2771,7 @@
                 const isReady = (selectedAudioElement.dataset.readyForInteraction === 'true');
                 const readyTime = parseFloat(selectedAudioElement.dataset.readyTimestamp || 0);
                 const currentTime = Date.now();
-                const rawTimeDiff = readyTime - currentTime; // Log this raw difference
+                const rawTimeDiff = readyTime - currentTime; 
                 const timeRemainingSeconds = Math.max(0, Math.ceil(rawTimeDiff / 1000));
 
                 console.log(`[PLAY_PAUSE_DEBUG] Clicked audio: ${selectedAudioElement.id}`);
@@ -3444,6 +3401,8 @@
                         console.log("[TAB_CHANGE] Deselecting visual element when switching to audio tab.");
                         deselectAllElements(); 
                     }
+                    // When switching to audio tab, ensure playlist is re-rendered to reflect "ready" status
+                    updateAudioPlaylistDisplay(); 
                 } else {
                     if (tabId === 'properties' || tabId === 'text') {
                     }
@@ -3592,7 +3551,7 @@
             mainCanvasWrapper.style.transformOrigin = 'center center';
             deselectAllElements(); 
             updateLayersList();
-            updateAudioPlaylistDisplay();
+            updateAudioPlaylistDisplay(); // This will only show elements marked as ready
             updateFileCountDisplay();
             applyZoom();
             showMutePreferenceModal();
