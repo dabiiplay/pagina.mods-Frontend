@@ -671,7 +671,7 @@
         let initialRotationAngle = 0;
         let initialElementRotation = 0;
         let currentZoom = 1.0;
-        let isMutedGlobally = true; // This will now represent the user's *preference* for local playback
+        let isMutedGlobally = true; // Valor inicial para que el modal pida la preferencia
         const allElements = new Map();
         const WS_URL = 'wss://pagina-mods-websocket-server.onrender.com';
         let ws = null; // Initialize to null
@@ -965,7 +965,6 @@
         }
 
         function saveElementsState() {
-            // isMutedGlobally now only reflects the modal preference, not actual audio muting
             localStorage.setItem('isMutedGlobally', JSON.stringify(isMutedGlobally));
         }
 
@@ -974,7 +973,9 @@
             if (storedMuteState !== null) {
                 isMutedGlobally = JSON.parse(storedMuteState);
             } else {
-                isMutedGlobally = true;
+                // Por defecto, asumir "con sonido" si no hay preferencia guardada.
+                // El modal aún se mostrará para que el usuario elija.
+                isMutedGlobally = false; 
             }
         }
 
@@ -1119,7 +1120,7 @@
                 audioElement.volume = data.volume || 0.5;
                 audioElement.currentTime = data.currentTime || 0;
                 audioElement.dataset.lastVolume = data.lastVolume || 0.5;
-                audioElement.muted = false; // Siempre false para que OBS lo escuche
+                audioElement.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
                 audioElement.dataset.originalName = data.originalName || `Audio ${data.id.substring(data.id.length - 4)}`;
                 audioElement.dataset.type = 'audio';
                 audioElement.dataset.readyTimestamp = data.readyTimestamp || Date.now(); // Ensure timestamp is set
@@ -1128,6 +1129,14 @@
                     audioElement.dataset.publicId = data.publicId;
                 }
                 audioElement.preload = "metadata"; // Changed to "metadata" to reduce initial load
+
+                // NEW: Logic to immediately mark as ready if timestamp is in the past upon loading
+                const receivedReadyTime = parseFloat(audioElement.dataset.readyTimestamp || 0);
+                if (audioElement.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
+                    console.log(`[AUDIO_CREATE/UPDATE] Audio ${data.id} received with readyForInteraction=false but timestamp is in the past. Forcing local readyForInteraction=true.`);
+                    audioElement.dataset.readyForInteraction = 'true';
+                }
+
 
                 audioElement.addEventListener('loadedmetadata', () => {
                     console.log(`[AUDIO_EVENT] loadedmetadata for ${audioElement.id}. Duration: ${audioElement.duration}`);
@@ -1143,7 +1152,7 @@
                 audioElement.addEventListener('ended', () => {
                     console.log(`[AUDIO_EVENT] Audio ended for ${audioElement.id}`);
                     if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-                        updatePlayPauseButton(true);
+                        updatePlayPauseButton(true); // Se muestra como pausado
                         audioElement.currentTime = 0;
                         // Explicitly send that it's paused and at start
                         sendWebSocketMessage('elementUpdate', {
@@ -1163,12 +1172,19 @@
                 const elementToUpdate = allElements.get(data.id); // Get the existing element
                 elementToUpdate.src = data.src;
                 elementToUpdate.volume = data.volume;
-                elementToUpdate.muted = false; // Siempre false para que OBS lo escuche
+                elementToUpdate.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
                 elementToUpdate.dataset.lastVolume = data.lastVolume;
                 elementToUpdate.dataset.readyTimestamp = data.readyTimestamp || elementToUpdate.dataset.readyTimestamp; 
                 elementToUpdate.dataset.readyForInteraction = data.readyForInteraction; // Update ready state for audio
                 if (data.publicId) {
                     elementToUpdate.dataset.publicId = data.publicId;
+                }
+
+                // NEW: Logic to immediately mark as ready if timestamp is in the past upon updating
+                const receivedReadyTime = parseFloat(elementToUpdate.dataset.readyTimestamp || 0);
+                if (elementToUpdate.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
+                    console.log(`[AUDIO_CREATE/UPDATE] Audio ${data.id} received update with readyForInteraction=false but timestamp is in the past. Forcing local readyForInteraction=true.`);
+                    elementToUpdate.dataset.readyForInteraction = 'true';
                 }
 
                 const timeDifference = Math.abs(elementToUpdate.currentTime - data.currentTime);
@@ -1177,22 +1193,24 @@
                     console.log(`[AUDIO_DEBUG] Setting currentTime for ${data.id} to ${data.currentTime} (difference: ${timeDifference.toFixed(2)}s, or was paused).`);
                 }
 
-                const isReady = (parseFloat(elementToUpdate.dataset.readyTimestamp) || 0) <= Date.now();
+
+                const isReady = (elementToUpdate.dataset.readyForInteraction === 'true'); // Check readyForInteraction status
                 const shouldBePlayingAccordingToServer = data.isPlaying;
 
-                console.log(`[AUDIO_DEBUG] Element ${elementToUpdate.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${elementToUpdate.paused}, Muted=${elementToUpdate.muted}, Ready=${isReady}, Data ReadyForInteraction: ${data.readyForInteraction}`);
+                console.log(`[AUDIO_DEBUG] Element ${elementToUpdate.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${elementToUpdate.paused}, Muted=${elementToUpdate.muted}, ReadyForInteraction (local dataset)=${isReady}, Data ReadyForInteraction (from server): ${data.readyForInteraction}`);
 
-                // Solo reproducir si el servidor indica que debe reproducirse Y si la preferencia global es "con sonido"
-                if (shouldBePlayingAccordingToServer && isReady && !isMutedGlobally) { // Modificado: usar isMutedGlobally para control local
+
+                // Solo reproducir/pausar según el estado del servidor, independientemente del muted local
+                if (shouldBePlayingAccordingToServer && isReady) {
                     if (elementToUpdate.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${elementToUpdate.id} due to server update. (Was paused, not muted by global preference, ready).`);
+                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${elementToUpdate.id} due to server update. (Was paused, ready).`);
                         elementToUpdate.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${elementToUpdate.id} during update:`, e));
                     } else {
                         console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} already playing locally as per server. No action.`);
                     }
-                } else if (!shouldBePlayingAccordingToServer || isMutedGlobally) { // Modificado: Pausar si el servidor no indica reproducir O si la preferencia global es "silenciar"
+                } else if (!shouldBePlayingAccordingToServer) {
                     if (!elementToUpdate.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${elementToUpdate.id} due to server update (was playing locally) or global mute preference.`);
+                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${elementToUpdate.id} due to server update. (Was playing locally).`);
                         elementToUpdate.pause();
                     } else {
                         console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} already paused locally as per server. No action.`);
@@ -1272,12 +1290,19 @@
                 console.log(`[UPDATE_ELEMENT] Updating properties of AUDIO element: ${data.id}`);
                 element.src = data.src;
                 element.volume = data.volume;
-                element.muted = false; // Siempre false para que OBS lo escuche
+                element.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
                 element.dataset.lastVolume = data.lastVolume;
                 element.dataset.readyTimestamp = data.readyTimestamp || element.dataset.readyTimestamp; 
                 element.dataset.readyForInteraction = data.readyForInteraction; // Update ready state for audio
                 if (data.publicId) {
                     element.dataset.publicId = data.publicId;
+                }
+
+                // NEW: Logic to immediately mark as ready if timestamp is in the past upon updating
+                const receivedReadyTime = parseFloat(element.dataset.readyTimestamp || 0);
+                if (element.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
+                    console.log(`[AUDIO_CREATE/UPDATE] Audio ${data.id} received update with readyForInteraction=false but timestamp is in the past. Forcing local readyForInteraction=true.`);
+                    element.dataset.readyForInteraction = 'true';
                 }
 
                 const timeDifference = Math.abs(element.currentTime - data.currentTime);
@@ -1286,23 +1311,24 @@
                     console.log(`[AUDIO_DEBUG] Setting currentTime for ${data.id} to ${data.currentTime} (difference: ${timeDifference.toFixed(2)}s, or was paused).`);
                 }
 
-                const isReady = (parseFloat(element.dataset.readyTimestamp) || 0) <= Date.now();
+
+                const isReady = (element.dataset.readyForInteraction === 'true'); // Check readyForInteraction status
                 const shouldBePlayingAccordingToServer = data.isPlaying;
 
-                console.log(`[AUDIO_DEBUG] Element ${element.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${element.paused}, Muted=${element.muted}, Ready=${isReady}, Data ReadyForInteraction: ${data.readyForInteraction}`);
+                console.log(`[AUDIO_DEBUG] Element ${element.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${element.paused}, Muted=${element.muted}, ReadyForInteraction (local dataset)=${isReady}, Data ReadyForInteraction (from server): ${data.readyForInteraction}`);
 
 
-                // Solo reproducir si el servidor indica que debe reproducirse Y si la preferencia global es "con sonido"
-                if (shouldBePlayingAccordingToServer && isReady && !isMutedGlobally) { // Modificado: usar isMutedGlobally para control local
+                // Solo reproducir/pausar según el estado del servidor, independientemente del muted local
+                if (shouldBePlayingAccordingToServer && isReady) {
                     if (element.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${element.id} due to server update. (Was paused, not muted by global preference, ready).`);
+                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${element.id} due to server update. (Was paused, ready).`);
                         element.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${element.id} during update:`, e));
                     } else {
                         console.log(`[AUDIO_DEBUG] ${element.id} already playing locally as per server. No action.`);
                     }
-                } else if (!shouldBePlayingAccordingToServer || isMutedGlobally) { // Modificado: Pausar si el servidor no indica reproducir O si la preferencia global es "silenciar"
+                } else if (!shouldBePlayingAccordingToServer) {
                     if (!element.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${element.id} due to server update (was playing locally) or global mute preference.`);
+                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${element.id} due to server update. (Was playing locally).`);
                         element.pause();
                     } else {
                         console.log(`[AUDIO_DEBUG] ${element.id} already paused locally as per server. No action.`);
@@ -1377,7 +1403,7 @@
                 console.log(`[UPDATE_ELEMENT] Updating UI for selected audio ${data.id}`);
                 volumeRange.value = element.volume;
                 volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
-                updatePlayPauseButton(element.paused || isMutedGlobally); // El botón refleja el estado pausado O la preferencia global
+                updatePlayPauseButton(element.paused); // El botón refleja el estado real de pausa
                 currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
                 checkAudioReadyState(selectedAudioElement);
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
@@ -1444,8 +1470,7 @@
         }
 
         function updatePlayPauseButton(isPaused) {
-            // El botón de play/pause ahora también refleja si la preferencia global es "silenciar"
-            if (isPaused || isMutedGlobally) { 
+            if (isPaused) {
                 playIcon.classList.remove('hidden');
                 pauseIcon.classList.add('hidden');
             } else {
@@ -1455,37 +1480,29 @@
         }
 
         function applyGlobalMuteState() {
-            // isMutedGlobally ahora es solo una bandera para la reproducción local.
-            // Los elementos de audio NO se silencian directamente por esto.
-            // Solo pausamos los audios si la preferencia global es "silenciar".
             allElements.forEach(element => {
                 if (element.tagName === 'AUDIO') {
-                    // El elemento de audio HTML nunca se silencia con .muted = true.
-                    // Su estado mutado siempre es false para OBS.
-                    element.muted = false; 
-                    
-                    if (selectedAudioElement && selectedAudioElement.id === element.id) {
-                         volumeRange.value = element.volume; // Update UI
-                         volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
-                    }
-                    
-                    if (isMutedGlobally && !element.paused) {
-                        // Si se selecciona "silenciar" en el modal y el audio está reproduciéndose, páusalo localmente.
-                        console.log(`[GLOBAL_MUTE_APPLY] Pausing audio ${element.id} due to global mute preference.`);
-                        element.pause();
-                        // No enviamos un update al servidor aquí para evitar bucles,
-                        // ya que este cambio es solo para la experiencia del usuario local.
-                    } else if (!isMutedGlobally && element.dataset.isPlayingWhenUnmuted === 'true' && element.paused) {
-                        // Si se selecciona "con sonido" y el audio debería estar reproduciéndose (según su estado guardado),
-                        // intenta reproducirlo.
-                        console.log(`[GLOBAL_MUTE_APPLY] Attempting to resume audio ${element.id} due to global unmute preference.`);
-                        element.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${element.id} during global unmute:`, e));
+                    // El estado `muted` del elemento de audio se controla localmente
+                    element.muted = isMutedGlobally; 
+                    console.log(`[GLOBAL_MUTE_APPLY] Audio ${element.id} set to muted: ${element.muted} (local preference).`);
+
+                    // Si el audio debe estar reproduciéndose (según el estado del servidor)
+                    // entonces debemos intentar reproducirlo para OBS, independientemente de `muted`.
+                    const serverState = getElementState(element); // Obtener el estado actual del elemento
+                    // Ensure the element is marked as readyForInteraction='true' locally
+                    const isReady = (element.dataset.readyForInteraction === 'true');
+
+                    if (serverState && serverState.isPlaying && element.paused && isReady) {
+                        console.log(`[GLOBAL_MUTE_APPLY] Audio ${element.id} attempting to play (server says playing, locally paused, and ready).`);
+                        element.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${element.id} during global state apply:`, e));
                     }
                 }
             });
-            // Actualiza el botón de play/pause si hay un audio seleccionado.
+            // Actualiza el botón de play/pause y el slider de volumen si hay un audio seleccionado.
             if (selectedAudioElement) {
-                updatePlayPauseButton(selectedAudioElement.paused || isMutedGlobally);
+                updatePlayPauseButton(selectedAudioElement.paused); // El botón refleja el estado real de pausa
+                volumeRange.value = selectedAudioElement.volume;
+                volumeValueDisplay.textContent = `${Math.round(selectedAudioElement.volume * 100)}%`;
             }
             saveElementsState();
         }
@@ -1562,7 +1579,7 @@
             currentAudioNameDisplay.textContent = '';
             volumeRange.value = 0.5;
             volumeValueDisplay.textContent = '50%';
-            updatePlayPauseButton(true); // Always show paused icon when no audio is selected
+            updatePlayPauseButton(true);
 
             // Clear and hide audio countdown
             if (audioCountdownInterval) {
@@ -1575,36 +1592,23 @@
 
         // Function to check and update play button state and countdown for selected audio
         function checkAudioReadyState(audioElement) {
-            if (!audioElement || !audioElement.dataset.readyTimestamp || audioElement.dataset.readyForInteraction === 'false') {
-                playPauseBtn.disabled = true;
-                audioCountdown.style.display = 'none';
-                audioCountdown.textContent = '';
-                return;
-            }
+            if (!audioElement) return; // Add a null check for safety
 
-            const readyTime = parseFloat(audioElement.dataset.readyTimestamp);
-            const timeRemaining = Math.max(0, Math.ceil((readyTime - Date.now()) / 1000));
+            const readyTime = parseFloat(audioElement.dataset.readyTimestamp || 0);
+            const currentTime = Date.now();
+            const rawTimeDiff = readyTime - currentTime;
+            const timeRemaining = Math.max(0, Math.ceil(rawTimeDiff / 1000));
 
-            if (timeRemaining > 0) {
-                playPauseBtn.disabled = true;
-                audioCountdown.style.display = 'block';
-                audioCountdown.textContent = `Reproducción en ${timeRemaining} segundos...`;
+            console.log(`[CHECK_AUDIO_READY] Audio: ${audioElement.id}`);
+            console.log(`[CHECK_AUDIO_READY] current readyForInteraction: ${audioElement.dataset.readyForInteraction}`);
+            console.log(`[CHECK_AUDIO_READY] Stored readyTimestamp: ${readyTime} (${new Date(readyTime).toLocaleString()})`);
+            console.log(`[CHECK_AUDIO_READY] Current Date.now(): ${currentTime} (${new Date(currentTime).toLocaleString()})`);
+            console.log(`[CHECK_AUDIO_READY] Raw time difference (ms): ${rawTimeDiff}`);
+            console.log(`[CHECK_AUDIO_READY] Calculated timeRemaining: ${timeRemaining}`);
 
-                if (!audioCountdownInterval) {
-                    audioCountdownInterval = setInterval(() => {
-                        const newTimeRemaining = Math.max(0, Math.ceil((readyTime - Date.now()) / 1000));
-                        if (newTimeRemaining > 0) {
-                            audioCountdown.textContent = `Reproducción en ${newTimeRemaining} segundos...`;
-                        } else {
-                            clearInterval(audioCountdownInterval);
-                            audioCountdownInterval = null;
-                            audioCountdown.style.display = 'none';
-                            audioCountdown.textContent = '';
-                            playPauseBtn.disabled = false; 
-                        }
-                    }, 1000); 
-                }
-            } else {
+
+            // Check based on the readyForInteraction dataset property directly
+            if (audioElement.dataset.readyForInteraction === 'true') {
                 playPauseBtn.disabled = false;
                 if (audioCountdownInterval) {
                     clearInterval(audioCountdownInterval);
@@ -1612,7 +1616,44 @@
                 }
                 audioCountdown.style.display = 'none';
                 audioCountdown.textContent = '';
+                return;
             }
+
+            // If not readyForInteraction === 'true'
+            // Show countdown and disable button
+            playPauseBtn.disabled = true;
+            audioCountdown.style.display = 'block';
+            audioCountdown.textContent = `Reproducción en ${timeRemaining} segundos...`;
+
+            if (audioCountdownInterval) { // Clear existing interval before setting new one
+                clearInterval(audioCountdownInterval);
+            }
+            audioCountdownInterval = setInterval(() => {
+                const newRawTimeDiff = readyTime - Date.now();
+                const newTimeRemaining = Math.max(0, Math.ceil(newRawTimeDiff / 1000));
+                
+                console.log(`[COUNTDOWN_INTERVAL] Audio: ${audioElement.id}, New Time Remaining: ${newTimeRemaining}s`);
+
+                if (newTimeRemaining > 0) {
+                    audioCountdown.textContent = `Reproducción en ${newTimeRemaining} segundos...`;
+                } else {
+                    clearInterval(audioCountdownInterval);
+                    audioCountdownInterval = null;
+                    audioCountdown.style.display = 'none';
+                    audioCountdown.textContent = '';
+                    playPauseBtn.disabled = false; 
+                    
+                    // This part is the fallback to ensure readiness if somehow not set by server
+                    if (audioElement.dataset.readyForInteraction !== 'true') {
+                        audioElement.dataset.readyForInteraction = 'true';
+                        // Send an update to the server to ensure consistency for other clients
+                        const updatedState = getElementState(audioElement);
+                        updatedState.readyForInteraction = 'true';
+                        sendWebSocketMessage('elementUpdate', { element: updatedState });
+                        console.log(`[COUNTDOWN_INTERVAL] Audio ${audioElement.id} countdown finished, forced ready, sending update.`);
+                    }
+                }
+            }, 1000);
         }
 
 
@@ -1802,10 +1843,11 @@
             // Enable audio controls
             volumeRange.disabled = false;
 
-            audioElement.muted = false; // Siempre false para que OBS lo escuche
+            // Establece el estado muted del audio según la preferencia global
+            audioElement.muted = isMutedGlobally; 
             volumeRange.value = audioElement.volume;
             volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
-            updatePlayPauseButton(audioElement.paused || isMutedGlobally); // El botón refleja el estado pausado O la preferencia global
+            updatePlayPauseButton(audioElement.paused); // El botón refleja el estado real de pausa
             currentAudioNameDisplay.textContent = audioElement.dataset.originalName || 'Audio Seleccionado';
             
             checkAudioReadyState(audioElement);
@@ -1990,7 +2032,7 @@
                 wrapperDiv.dataset.readyForInteraction = 'false'; // Mark as not ready
                 const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
                 wrapperDiv.dataset.readyTimestamp = readyTime; 
-                
+
                 console.log(`[DEBUG_LOCAL_CREATE] Visual element ${newId} created locally. Initial opacity: ${wrapperDiv.style.opacity}, pointerEvents: ${wrapperDiv.style.pointerEvents}, dataset.readyForInteraction: ${wrapperDiv.dataset.readyForInteraction}, readyTimestamp: ${wrapperDiv.dataset.readyTimestamp}`);
 
 
@@ -2077,7 +2119,7 @@
                 audioElement.volume = 0.5;
                 audioElement.currentTime = 0;
                 audioElement.dataset.lastVolume = 0.5;
-                audioElement.muted = false; // Siempre false para que OBS lo escuche
+                audioElement.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
                 audioElement.dataset.originalName = file.name;
                 audioElement.dataset.type = 'audio';
                 audioElement.dataset.readyTimestamp = Date.now() + ELEMENT_VISIBILITY_DELAY_MS; // Apply delay to audio too
@@ -2097,6 +2139,7 @@
                     console.log(`[AUDIO_PREP] Audio ${audioElement.id} canplaythrough for initial prep.`);
                     audioElement.removeEventListener('canplaythrough', onCanPlayThroughPrep); 
 
+                    // Siempre intentar reproducir para que OBS lo detecte, incluso si está muted.
                     audioElement.play().then(() => {
                         console.log(`[AUDIO_PREP] Quick play successful for ${audioElement.id}, now pausing.`);
                         audioElement.pause();
@@ -2114,7 +2157,7 @@
                             isPlaying: !audioElement.paused,
                             duration: audioElement.duration,
                             lastVolume: audioElement.dataset.lastVolume,
-                            muted: audioElement.muted, 
+                            // NO ENVIAMOS `muted` al servidor, es una preferencia LOCAL.
                             readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), 
                             left: '0px', top: '0px', width: '0px', height: '0px', 
                             rotation: 0, scale: 1, zIndex: 0, opacity: 1, 
@@ -2132,6 +2175,14 @@
                                 checkAudioReadyState(selectedAudioElement); // Re-check button state if selected
                             }
                             updateAudioPlaylistDisplay(); // Update playlist UI to reflect readiness
+
+                            // NEW: Send update to server that this audio is now ready for interaction
+                            const updatedState = getElementState(audioElement);
+                            updatedState.readyForInteraction = 'true'; // Ensure this is explicitly true for the server update
+                            console.log(`[LOCAL_CREATE_AND_SEND] Sending update to server: audio ${newId} is now ready for interaction.`);
+                            sendWebSocketMessage('elementUpdate', { element: updatedState });
+
+
                         }, ELEMENT_VISIBILITY_DELAY_MS);
 
 
@@ -2142,7 +2193,9 @@
                         // If prep fails, still send the initial state to server, but log the warning.
                         const finalElementState = {
                             ...elementState,
-                            type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime, paused: audioElement.paused, isPlaying: !audioElement.paused, duration: audioElement.duration, lastVolume: audioElement.dataset.lastVolume, muted: audioElement.muted, readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), left: '0px', top: '0px', width: '0px', height: '0px', rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', readyForInteraction: 'false'
+                            type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime, paused: audioElement.paused, isPlaying: !audioElement.paused, duration: audioElement.duration, lastVolume: audioElement.dataset.lastVolume,
+                            // NO ENVIAMOS `muted` al servidor, es una preferencia LOCAL.
+                            readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), left: '0px', top: '0px', width: '0px', height: '0px', rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', readyForInteraction: 'false'
                         };
                         console.log(`[LOCAL_CREATE_AND_SEND] Sending audio element to server with readyForInteraction: ${finalElementState.readyForInteraction}, readyTimestamp: ${finalElementState.readyTimestamp} (after prep error)`);
                         sendWebSocketMessage('elementAdd', { element: finalElementState });
@@ -2155,6 +2208,13 @@
                                 checkAudioReadyState(selectedAudioElement);
                             }
                             updateAudioPlaylistDisplay();
+
+                            // NEW: Send update to server that this audio is now ready for interaction even after prep error
+                            const updatedState = getElementState(audioElement);
+                            updatedState.readyForInteraction = 'true';
+                            console.log(`[LOCAL_CREATE_AND_SEND] Sending update to server: audio ${newId} is now ready for interaction (after prep error).`);
+                            sendWebSocketMessage('elementUpdate', { element: updatedState });
+
                         }, ELEMENT_VISIBILITY_DELAY_MS);
                     });
                 });
@@ -2329,7 +2389,7 @@
                     id: element.id,
                     type: 'audio',
                     src: element.src,
-                    volume: element.volume,
+                    volume: element.volume, // Enviamos el volumen al servidor (afecta a todos)
                     currentTime: element.currentTime, 
                     paused: element.paused,
                     isPlaying: !element.paused, 
@@ -2337,12 +2397,12 @@
                     lastVolume: element.dataset.lastVolume,
                     originalName: element.dataset.originalName,
                     publicId: element.dataset.publicId,
-                    muted: false, // Siempre false para que OBS lo escuche
+                    // NO ENVIAMOS `muted` al servidor. Es una preferencia LOCAL del cliente.
                     readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now()), 
-                    left: '0px', top: '0px', width: '0px', height: '0px', // Audio elements don't have visual position
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1, // Default visual properties for non-visual audio
-                    visibility: 'hidden', // Audio is not visible on canvas
-                    readyForInteraction: element.dataset.readyForInteraction || 'true' // Reflect current ready state
+                    left: '0px', top: '0px', width: '0px', height: '0px', // Los elementos de audio no tienen posición visual
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1, // Propiedades visuales predeterminadas para audio no visual
+                    visibility: 'hidden', // El audio no es visible en el lienzo
+                    readyForInteraction: element.dataset.readyForInteraction || 'true' // Refleja el estado de preparación actual
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -2751,55 +2811,72 @@
         playPauseBtn.addEventListener('click', () => {
             console.log("[PLAY_PAUSE] Play/Pause button clicked.");
             if (selectedAudioElement) {
+                const isReady = (selectedAudioElement.dataset.readyForInteraction === 'true');
                 const readyTime = parseFloat(selectedAudioElement.dataset.readyTimestamp || 0);
-                if (readyTime > Date.now()) {
-                    console.warn('Audio not yet ready to play due to delay.');
-                    showConfirmationModal(`Este audio estará disponible para reproducir en ${Math.ceil((readyTime - Date.now()) / 1000)} segundos.`, null);
+                const currentTime = Date.now();
+                const rawTimeDiff = readyTime - currentTime; // Log this raw difference
+                const timeRemainingSeconds = Math.max(0, Math.ceil(rawTimeDiff / 1000));
+
+                console.log(`[PLAY_PAUSE_DEBUG] Clicked audio: ${selectedAudioElement.id}`);
+                console.log(`[PLAY_PAUSE_DEBUG] Current readyForInteraction: ${isReady}`);
+                console.log(`[PLAY_PAUSE_DEBUG] Stored readyTimestamp: ${readyTime} (${new Date(readyTime).toLocaleString()})`);
+                console.log(`[PLAY_PAUSE_DEBUG] Current Date.now(): ${currentTime} (${new Date(currentTime).toLocaleString()})`);
+                console.log(`[PLAY_PAUSE_DEBUG] Raw time difference (ms): ${rawTimeDiff}`);
+                console.log(`[PLAY_PAUSE_DEBUG] Calculated timeRemainingSeconds (Math.max(0, ...)): ${timeRemainingSeconds}`);
+
+
+                // If not ready and readyTime is in the future, show countdown.
+                if (!isReady && rawTimeDiff > 0) { // Using rawTimeDiff > 0 directly for future
+                    showConfirmationModal(`Este audio estará disponible para reproducir en ${timeRemainingSeconds} segundos.`, null);
                     return;
+                } 
+                // If not ready but readyTime is in the past or now, force it to be ready and proceed.
+                else if (!isReady && rawTimeDiff <= 0) { // Using rawTimeDiff <= 0 directly for past/present
+                    console.warn(`[PLAY_PAUSE] Audio ${selectedAudioElement.id} was not marked ready, but its readyTimestamp is in the past. Forcing local readyForInteraction=true.`);
+                    selectedAudioElement.dataset.readyForInteraction = 'true';
+                    // Send an update to the server to ensure consistency for other clients
+                    const updatedState = getElementState(selectedAudioElement);
+                    updatedState.readyForInteraction = 'true';
+                    sendWebSocketMessage('elementUpdate', { element: updatedState });
+                    // No return here, proceed to play/pause logic
                 }
+                // If isReady is true, or if we just forced it to true, proceed with play/pause.
 
-                // El elemento de audio real siempre está "desilenciado" (muted: false) para OBS.
-                // La lógica de reproducción/pausa aquí controlará si el *usuario local* lo oye o no,
-                // respetando la preferencia global (`isMutedGlobally`).
-
+                // At this point, the audio should be considered ready.
                 const wasPaused = selectedAudioElement.paused;
-                const targetIsPlaying = wasPaused; // Si estaba pausado, el objetivo es reproducir; si estaba reproduciendo, el objetivo es pausar.
+                const targetIsPlaying = wasPaused; // Si estaba pausado, el objetivo es reproducir; si reproduciendo, el objetivo es pausar.
 
                 if (targetIsPlaying) {
-                    if (!isMutedGlobally) { // Solo reproducir si la preferencia global es "con sonido"
-                        allElements.forEach(element => {
-                            if (element.tagName === 'AUDIO' && element !== selectedAudioElement && !element.paused) {
-                                element.pause();
-                                sendWebSocketMessage('elementUpdate', {
-                                    element: {
-                                        ...getElementState(element),
-                                        isPlaying: false,
-                                        paused: true 
-                                    }
-                                });
-                            }
-                        });
-                        selectedAudioElement.play().catch(e => {
-                            console.error('Error playing audio (possible browser autoplay restriction):', e);
-                            updatePlayPauseButton(true); 
-                            return; 
-                        });
-                    } else {
-                        // Si la preferencia global es "silenciar", no reproducir localmente, pero actualiza el botón
-                        console.log("[PLAY_PAUSE] Not playing because isMutedGlobally is true.");
-                        updatePlayPauseButton(true); // Mostrar como pausado
-                        return; // No hacer nada más
-                    }
+                    // Pausar otros audios reproduciéndose, independientemente de su estado muted.
+                    allElements.forEach(element => {
+                        if (element.tagName === 'AUDIO' && element !== selectedAudioElement && !element.paused) {
+                            element.pause();
+                            sendWebSocketMessage('elementUpdate', {
+                                element: {
+                                    ...getElementState(element),
+                                    isPlaying: false,
+                                    paused: true 
+                                }
+                            });
+                        }
+                    });
+
+                    // Siempre intentar reproducir el audio seleccionado. Su estado 'muted' es local y no afecta a OBS.
+                    selectedAudioElement.play().catch(e => {
+                        console.error('Error playing audio (possible browser autoplay restriction):', e);
+                        updatePlayPauseButton(true); // Revertir botón si la reproducción falla
+                        return; 
+                    });
                 } else {
-                    // Si el objetivo es pausar, pausa localmente.
+                    // Si el objetivo es pausar, pausar localmente.
                     selectedAudioElement.pause();
                 }
 
                 updatePlayPauseButton(!targetIsPlaying); // Actualiza el botón para reflejar el nuevo estado local.
                 
                 const stateToSend = getElementState(selectedAudioElement);
-                stateToSend.isPlaying = targetIsPlaying && !isMutedGlobally; // Solo se considera "isPlaying" si se reproduce y no está silenciado globalmente
-                stateToSend.paused = !stateToSend.isPlaying; // Se considera pausado si no está reproduciéndose
+                stateToSend.isPlaying = targetIsPlaying; // El servidor debe saber si se está reproduciendo
+                stateToSend.paused = !targetIsPlaying; // El servidor debe saber si está pausado
                 stateToSend.currentTime = selectedAudioElement.currentTime; 
 
                 console.log('[PLAY_PAUSE_DEBUG] Sending audio update:', stateToSend); 
@@ -2809,14 +2886,17 @@
 
         volumeRange.addEventListener('input', () => {
             if (selectedAudioElement) {
-                selectedAudioElement.volume = parseFloat(volumeRange.value);
-                selectedAudioElement.dataset.lastVolume = volumeRange.value;
+                const newVolume = parseFloat(volumeRange.value);
+                selectedAudioElement.volume = newVolume;
+                selectedAudioElement.dataset.lastVolume = newVolume;
                 
-                // El elemento de audio HTML siempre está "desilenciado" (muted: false) para OBS.
-                // La propiedad 'muted' del elemento de audio ya no se controla aquí.
-                selectedAudioElement.muted = false; 
-
-                volumeValueDisplay.textContent = `${Math.round(volumeRange.value * 100)}%`;
+                // Si el volumen es 0, silenciar localmente. Si no, aplicar la preferencia global.
+                if (newVolume === 0) {
+                    selectedAudioElement.muted = true;
+                } else {
+                    selectedAudioElement.muted = isMutedGlobally; 
+                }
+                volumeValueDisplay.textContent = `${Math.round(newVolume * 100)}%`;
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
             }
         });
@@ -3482,19 +3562,33 @@
         `;
         document.body.appendChild(confirmationModal);
 
-        document.getElementById('confirmOkBtn').addEventListener('click', () => {
-            confirmationModal.classList.remove('active');
-        });
+        // Se elimina el listener anterior para evitar duplicados.
+        // Solo se añade un listener cuando se muestra el modal.
+        // document.getElementById('confirmOkBtn').addEventListener('click', () => {
+        //     confirmationModal.classList.remove('active');
+        // });
 
         function showConfirmationModal(message, callback) { 
             document.getElementById('confirmationMessage').textContent = message;
             confirmationModal.classList.add('active');
+
+            // Clonar el botón OK para eliminar listeners anteriores y añadir uno nuevo
+            const oldConfirmOkBtn = document.getElementById('confirmOkBtn');
+            const newConfirmOkBtn = oldConfirmOkBtn.cloneNode(true);
+            oldConfirmOkBtn.parentNode.replaceChild(newConfirmOkBtn, oldConfirmOkBtn); 
+
+            newConfirmOkBtn.addEventListener('click', () => {
+                confirmationModal.classList.remove('active');
+                if (callback && typeof callback === 'function') {
+                    callback();
+                }
+            });
         }
 
 
         document.addEventListener('DOMContentLoaded', () => {
             connectWebSocket();
-            loadElementsState();
+            loadElementsState(); // Carga la preferencia de muting
             mainCanvasWrapper.style.transformOrigin = 'center center';
             deselectAllElements(); 
             updateLayersList();
@@ -3509,13 +3603,13 @@
 
             modalMuteBtn.onclick = () => {
                 isMutedGlobally = true;
-                applyGlobalMuteState(); // Ahora solo controla la reproducción local, no el atributo 'muted'
+                applyGlobalMuteState(); // Aplica el estado muted a los audios
                 mutePreferenceModal.classList.remove('active');
             };
 
             modalSoundBtn.onclick = () => {
                 isMutedGlobally = false;
-                applyGlobalMuteState(); // Ahora solo controla la reproducción local, no el atributo 'muted'
+                applyGlobalMuteState(); // Aplica el estado unmuted a los audios
                 mutePreferenceModal.classList.remove('active');
             };
         }
