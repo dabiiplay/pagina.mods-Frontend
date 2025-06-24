@@ -642,8 +642,6 @@
         const pauseIcon = document.getElementById('pauseIcon');
         const volumeRange = document.getElementById('volumeRange');
         const volumeValueDisplay = document.getElementById('volumeValue');
-        // COMENTADO: const timelineRange = document.getElementById('timelineRange'); // Desactivada la barra de línea de tiempo
-        // COMENTADO: const currentTimeDisplay = document.getElementById('currentTimeDisplay'); // Desactivada la visualización del tiempo actual
         const currentAudioNameDisplay = document.getElementById('currentAudioName');
         const audioPlaylist = document.getElementById('audioPlaylist');
         const fileLimit = 50;
@@ -680,13 +678,7 @@
         let reconnectInterval = null; // Initialize to null
         let audioCountdownInterval = null; // New: for audio countdown
 
-        // COMENTADO: Throttle for audio time updates - Ya no es necesario al eliminar la barra de tiempo
-        // COMENTADO: let audioTimeUpdateThrottleTimeout = null;
-        // COMENTADO: const AUDIO_TIME_UPDATE_THROTTLE_MS = 500; // Send audio time updates every 500ms
-        // COMENTADO: let audioTimeUpdateAnimationFrame = null; // New: for UI updates on requestAnimationFrame
-
-
-        // New variables for user identification, similar to indexx.html
+        // New variables for user identification
         let myUserId = 'user-' + Math.random().toString(36).substr(2, 9);
         let myUserColor = getRandomColor(); // Function to generate a random color
 
@@ -700,13 +692,12 @@
             return color;
         }
 
-        // Throttle constant for sending updates - Changed to 80ms
+        // Throttle constant for sending updates
         const DRAG_SEND_THROTTLE_MS = 80; 
         let dragSendTimeout = null; // Throttle timeout variable
         let pendingDOMUpdateAnimationFrame = null; // Variable to control requestAnimationFrame for updates
 
         // Constants for delays
-        // const AUDIO_PLAY_DELAY_MS = 30000; // 30 seconds - Comentado: el audio ahora debería reproducirse de inmediato
         const AUDIO_PLAY_DELAY_MS = 0; // Se establece en 0 para evitar el retraso.
 
         function connectWebSocket() {
@@ -745,13 +736,12 @@
                     clearInterval(reconnectInterval);
                     reconnectInterval = null;
                 }
-                // IMPORTANT: Send user connection information on open, as in indexx.html
+                // IMPORTANT: Send user connection information on open
                 sendWebSocketMessage('userConnect', { userId: myUserId, userName: `Usuario ${myUserId.slice(-4)}`, userColor: myUserColor });
             };
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
-                // console.log('[WS_MESSAGE_RECEIVED]', message); // Keep this line for general debugging, but not for every ping
                 if (message.type === 'initialState') {
                     console.log('[WS_MESSAGE_RECEIVED] Received initialState. Clearing existing elements and re-rendering.');
                     allElements.clear();
@@ -766,10 +756,12 @@
                     audioCountdown.style.display = 'none';
 
                     message.elements.forEach(data => {
+                        // When receiving initial state, all elements are considered ready.
+                        // Forcing readyForInteraction to 'true' here too.
+                        data.readyForInteraction = 'true'; 
                         if (data.type === 'audio') {
-                            // Ensure readyTimestamp is set for existing audio elements from server
                             if (!data.readyTimestamp) {
-                                data.readyTimestamp = Date.now(); // Assume existing are ready now
+                                data.readyTimestamp = Date.now();
                             }
                             createAudioElementAndAddToPlaylist(data);
                         } else {
@@ -782,17 +774,23 @@
                     updateFileCountDisplay();
                     deselectAllElements();
                 } else if (message.type === 'elementAdd') {
-                    console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}, type: ${message.element.type}`);
+                    console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}, type: ${message.element.type}, readyForInteraction from server (raw): ${message.element.readyForInteraction}`);
+
+                    // When we receive an elementAdd from the server, it means the server has processed it.
+                    // Therefore, the element is now considered ready for interaction on all clients.
+                    // This is a crucial step for synchronization.
+                    message.element.readyForInteraction = 'true';
+                    console.log(`[WS_MESSAGE_RECEIVED] FORCING readyForInteraction to 'true' for element ${message.element.id} upon receiving from server.`);
 
                     if (allElements.has(message.element.id)) {
                         console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} already exists locally, updating.`);
                         updateElementFromData(message.element);
                     } else {
-                        console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new (from another client), creating it.`);
+                        console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new, creating it.`);
                         if (message.element.type === 'audio') {
-                            // If audio is added by another client, set its ready timestamp
+                            // Audio elements also become ready upon server broadcast, though play is delayed.
                             if (!message.element.readyTimestamp) {
-                                message.element.readyTimestamp = Date.now(); // Assume ready when received
+                                message.element.readyTimestamp = Date.now();
                             }
                             createAudioElementAndAddToPlaylist(message.element);
                         } else {
@@ -803,7 +801,14 @@
                     updateAudioPlaylistDisplay();
                     updateFileCountDisplay();
                 } else if (message.type === 'elementUpdate') {
-                    // console.log(`[WS_MESSAGE_RECEIVED] elementUpdate for ID: ${message.element.id}, type: ${message.element.type}`); // Can be verbose
+                    console.log(`[WS_MESSAGE_RECEIVED] elementUpdate for ID: ${message.element.id}, type: ${message.element.type}, readyForInteraction from server (raw): ${message.element.readyForInteraction}`);
+                    // For updates, the readyForInteraction should already be true, but we'll apply it from data.
+                    // If the server explicitly sends false for an update, it means it's temporarily not ready.
+                    // Otherwise, it remains ready.
+                    if (message.element.readyForInteraction === undefined) {
+                        message.element.readyForInteraction = 'true'; // Default to true if not specified in update
+                    }
+                    console.log(`[WS_MESSAGE_RECEIVED] Final readyForInteraction for update on ${message.element.id}: ${message.element.readyForInteraction}`);
                     updateElementFromData(message.element);
                     updateLayersList();
                     updateAudioPlaylistDisplay();
@@ -840,12 +845,10 @@
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
                 // Inform the server about disconnection (if it's not a planned closure)
-                // This message will likely fail to send if the WS is truly closed, which is fine.
                 sendWebSocketMessage('userDisconnect', { userId: myUserId });
             };
 
             ws.onerror = (err) => {
-                // Log more details about the error event
                 // The 'error' event usually precedes 'close', so onclose will handle reconnection.
                 console.error(`[WS_EVENT] WebSocket error occurred:`, err.message || err.code || JSON.stringify(err));
             };
@@ -997,16 +1000,15 @@
         }
 
         function createElementFromData(data) {
+            console.log(`[CREATE_ELEMENT] Creating element ID: ${data.id}, Type: ${data.type}, ReadyForInteraction: ${data.readyForInteraction}`);
             if (allElements.has(data.id)) {
                 const existingElement = allElements.get(data.id);
-                // If it's a visual element and already exists, update it.
-                // This handles cases where an element is already created locally but then an 'elementAdd' comes from server.
                 if (existingElement.classList && existingElement.classList.contains('element-wrapper')) {
+                    console.log(`[CREATE_ELEMENT] Element ${data.id} already exists locally, calling updateElementFromData.`);
                     updateElementFromData(data);
                     return;
                 }
             }
-            // If it's an audio element, it will be handled by createAudioElementAndAddToPlaylist
             if (data.type === 'audio') {
                 createAudioElementAndAddToPlaylist(data);
                 return;
@@ -1023,13 +1025,14 @@
             wrapperDiv.style.top = data.top;
             applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
             wrapperDiv.style.zIndex = data.zIndex;
-            wrapperDiv.style.opacity = data.opacity; // Set initial opacity from data
+            wrapperDiv.style.opacity = data.opacity;
 
-            // For images/gifs from other clients, ensure they are visible and their interaction state is correct
-            wrapperDiv.style.visibility = data.visibility || 'visible';
-            wrapperDiv.style.pointerEvents = data.readyForInteraction === 'false' ? 'none' : 'auto';
-            wrapperDiv.dataset.readyForInteraction = data.readyForInteraction || 'true';
+            // Apply visibility and pointer events based on data.readyForInteraction
+            wrapperDiv.style.visibility = data.readyForInteraction === 'true' ? 'visible' : 'hidden';
+            wrapperDiv.style.pointerEvents = data.readyForInteraction === 'true' ? 'auto' : 'none';
+            wrapperDiv.dataset.readyForInteraction = data.readyForInteraction; // Store the state
 
+            console.log(`[CREATE_ELEMENT] Element ${data.id} visibility set to: ${wrapperDiv.style.visibility}, pointerEvents: ${wrapperDiv.style.pointerEvents}`);
 
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
@@ -1101,7 +1104,7 @@
         }
 
         function createAudioElementAndAddToPlaylist(data) {
-            console.log(`[AUDIO_CREATE] Attempting to create/update audio element: ${data.id}`);
+            console.log(`[AUDIO_CREATE] Attempting to create/update audio element: ${data.id}, ReadyForInteraction: ${data.readyForInteraction}`);
             let audioElement = allElements.get(data.id);
             if (!audioElement) {
                 console.log(`[AUDIO_CREATE] Audio element ${data.id} not found, creating new.`);
@@ -1115,23 +1118,21 @@
                 audioElement.dataset.originalName = data.originalName || `Audio ${data.id.substring(data.id.length - 4)}`;
                 audioElement.dataset.type = 'audio';
                 audioElement.dataset.readyTimestamp = data.readyTimestamp || Date.now(); // Ensure timestamp is set
+                audioElement.dataset.readyForInteraction = data.readyForInteraction; // Store ready state for audio
                 if (data.publicId) {
                     audioElement.dataset.publicId = data.publicId;
                 }
-                audioElement.preload = "metadata"; // Cambiado a "metadata" para reducir la carga inicial
+                audioElement.preload = "metadata"; // Changed to "metadata" to reduce initial load
 
                 audioElement.addEventListener('loadedmetadata', () => {
                     console.log(`[AUDIO_EVENT] loadedmetadata for ${audioElement.id}. Duration: ${audioElement.duration}`);
                     if (isNaN(audioElement.duration)) {
                         audioElement.duration = data.duration || audioElement.duration;
                     }
-                    // COMENTADO: updateTimelineDisplay(audioElement);
                 });
 
-                // Eliminado: La lógica de envío de mensajes WebSocket para 'timeupdate' ha sido eliminada
                 audioElement.addEventListener('timeupdate', () => {
-                    // COMENTADO: Las actualizaciones de la interfaz de usuario para la línea de tiempo ya están comentadas.
-                    // COMENTADO: El envío de mensajes WebSocket para timeupdate se ha eliminado para reducir el tráfico.
+                    // No throttling needed as we are not updating UI or sending WS messages on every timeupdate.
                 });
 
                 audioElement.addEventListener('ended', () => {
@@ -1139,14 +1140,12 @@
                     if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
                         updatePlayPauseButton(true);
                         audioElement.currentTime = 0;
-                        // COMENTADO: timelineRange.value = 0; // La barra de línea de tiempo está comentada
-                        // COMENTADO: currentTimeDisplay.textContent = formatTime(0) + ' / ' + formatTime(audioElement.duration || 0); // La visualización del tiempo está comentada
                         // Explicitly send that it's paused and at start
                         sendWebSocketMessage('elementUpdate', {
                             element: {
                                 ...getElementState(audioElement),
                                 isPlaying: false,
-                                paused: true // Ensure paused state is sent
+                                paused: true 
                             }
                         });
                     }
@@ -1162,6 +1161,7 @@
                 elementToUpdate.muted = data.muted; 
                 elementToUpdate.dataset.lastVolume = data.lastVolume;
                 elementToUpdate.dataset.readyTimestamp = data.readyTimestamp || elementToUpdate.dataset.readyTimestamp; 
+                elementToUpdate.dataset.readyForInteraction = data.readyForInteraction; // Update ready state for audio
                 if (data.publicId) {
                     elementToUpdate.dataset.publicId = data.publicId;
                 }
@@ -1177,7 +1177,7 @@
                 const shouldBePlayingAccordingToServer = data.isPlaying;
                 const isCurrentlyPlayingLocally = !elementToUpdate.paused;
 
-                console.log(`[AUDIO_DEBUG] Element ${elementToUpdate.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${elementToUpdate.paused}, Muted=${elementToUpdate.muted}, Ready=${isReady}`);
+                console.log(`[AUDIO_DEBUG] Element ${elementToUpdate.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${elementToUpdate.paused}, Muted=${elementToUpdate.muted}, Ready=${isReady}, Data ReadyForInteraction: ${data.readyForInteraction}`);
 
 
                 if (shouldBePlayingAccordingToServer && isReady && !elementToUpdate.muted) {
@@ -1254,12 +1254,12 @@
 
 
         function updateElementFromData(data) {
-            console.log(`[UPDATE] Received update for element ID: ${data.id}, type: ${data.type}`);
+            console.log(`[UPDATE_ELEMENT] Received update for element ID: ${data.id}, type: ${data.type}, readyForInteraction: ${data.readyForInteraction}`);
             const element = allElements.get(data.id);
             let contentElement = null; 
 
             if (!element) {
-                console.warn(`[UPDATE] Element ${data.id} not found for update, attempting to create.`);
+                console.warn(`[UPDATE_ELEMENT] Element ${data.id} not found for update, attempting to create.`);
                 if (data.type === 'audio') {
                     createAudioElementAndAddToPlaylist(data);
                 } else {
@@ -1269,12 +1269,13 @@
             }
 
             if (data.type === 'audio') {
-                console.log(`[UPDATE] Updating properties of AUDIO element: ${data.id}`);
+                console.log(`[UPDATE_ELEMENT] Updating properties of AUDIO element: ${data.id}`);
                 element.src = data.src;
                 element.volume = data.volume;
                 element.muted = data.muted; 
                 element.dataset.lastVolume = data.lastVolume;
                 element.dataset.readyTimestamp = data.readyTimestamp || element.dataset.readyTimestamp; 
+                element.dataset.readyForInteraction = data.readyForInteraction; // Update ready state for audio
                 if (data.publicId) {
                     element.dataset.publicId = data.publicId;
                 }
@@ -1290,7 +1291,7 @@
                 const shouldBePlayingAccordingToServer = data.isPlaying;
                 const isCurrentlyPlayingLocally = !element.paused;
 
-                console.log(`[AUDIO_DEBUG] Element ${element.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${element.paused}, Muted=${element.muted}, Ready=${isReady}`);
+                console.log(`[AUDIO_DEBUG] Element ${element.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${element.paused}, Muted=${element.muted}, Ready=${isReady}, Data ReadyForInteraction: ${data.readyForInteraction}`);
 
 
                 if (shouldBePlayingAccordingToServer && isReady && !element.muted) {
@@ -1311,7 +1312,7 @@
                     console.log(`[AUDIO_DEBUG] ${element.id} should be playing but is muted. Pausing.`);
                     element.pause();
                 }
-            } else {
+            } else { // Visual elements (img, gif, text)
                 element.style.left = data.left;
                 element.style.top = data.top;
                 element.style.width = data.width;
@@ -1319,13 +1320,22 @@
                 applyElementTransform(element, data.rotation || 0, data.scale || 1);
                 element.style.zIndex = data.zIndex;
                 element.style.opacity = data.opacity; 
-                element.style.visibility = data.visibility || 'visible'; 
-                element.dataset.readyForInteraction = data.readyForInteraction || 'true'; 
-                if (element.dataset.readyForInteraction === 'false') {
-                    element.style.pointerEvents = 'none';
-                } else {
+                
+                // Control visibility and pointer events based on readyForInteraction
+                const currentReadyState = element.dataset.readyForInteraction;
+                const newReadyState = data.readyForInteraction; 
+
+                if (newReadyState === 'true' && currentReadyState !== 'true') {
+                    console.log(`[VISIBILITY_CHANGE] Element ${data.id} is now ready, making visible and interactive.`);
+                    element.style.visibility = 'visible';
                     element.style.pointerEvents = 'auto';
+                } else if (newReadyState !== 'true' && currentReadyState === 'true') { // If new state is not 'true' but current is, hide it
+                    console.log(`[VISIBILITY_CHANGE] Element ${data.id} is no longer ready, making hidden and non-interactive.`);
+                    element.style.visibility = 'hidden';
+                    element.style.pointerEvents = 'none';
                 }
+                element.dataset.readyForInteraction = newReadyState; // Store the new state
+                console.log(`[UPDATE_ELEMENT] Element ${data.id} visibility set to: ${element.style.visibility}, pointerEvents: ${element.style.pointerEvents}`);
                 
                 contentElement = element.querySelector('.element-content');
                 if (contentElement) {
@@ -1357,16 +1367,15 @@
             }
 
             if (selectedAudioElement && selectedAudioElement.id === data.id) {
-                console.log(`[UPDATE] Updating UI for selected audio ${data.id}`);
+                console.log(`[UPDATE_ELEMENT] Updating UI for selected audio ${data.id}`);
                 volumeRange.value = element.volume;
                 volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
                 updatePlayPauseButton(element.paused);
-                // COMENTADO: updateTimelineDisplay(element); // La visualización del tiempo está comentada
                 currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
                 checkAudioReadyState(selectedAudioElement);
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
                 if (contentElement) { 
-                    console.log(`[UPDATE] Updating UI for selected visual element ${data.id}`);
+                    console.log(`[UPDATE_ELEMENT] Updating UI for selected visual element ${data.id}`);
                     opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
                     opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                     rotationRange.value = data.rotation;
@@ -1435,19 +1444,6 @@
                 playIcon.classList.add('hidden');
                 pauseIcon.classList.remove('hidden');
             }
-        }
-
-        // COMENTADO: Función updateTimelineDisplay (ya no es necesaria sin la barra de tiempo interactiva)
-        function updateTimelineDisplay(audioElement) {
-            /*
-            if (!isNaN(audioElement.duration)) {
-                timelineRange.max = audioElement.duration;
-                timelineRange.value = audioElement.currentTime;
-                currentTimeDisplay.textContent = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
-            } else {
-                currentTimeDisplay.textContent = `0:00 / 0:00`;
-            }
-            */
         }
 
         function applyGlobalMuteState() {
@@ -1538,12 +1534,9 @@
             selectedAudioElement = null;
             playPauseBtn.disabled = true;
             volumeRange.disabled = true;
-            // COMENTADO: timelineRange.disabled = true; // La barra de línea de tiempo está comentada
             currentAudioNameDisplay.textContent = '';
             volumeRange.value = 0.5;
             volumeValueDisplay.textContent = '50%';
-            // COMENTADO: timelineRange.value = 0; // La barra de línea de tiempo está comentada
-            // COMENTADO: currentTimeDisplay.textContent = '0:00 / 0:00'; // La visualización del tiempo está comentada
             updatePlayPauseButton(true);
 
             // Clear and hide audio countdown
@@ -1557,7 +1550,7 @@
 
         // Function to check and update play button state and countdown for selected audio
         function checkAudioReadyState(audioElement) {
-            if (!audioElement || !audioElement.dataset.readyTimestamp) {
+            if (!audioElement || !audioElement.dataset.readyTimestamp || audioElement.dataset.readyForInteraction === 'false') {
                 playPauseBtn.disabled = true;
                 audioCountdown.style.display = 'none';
                 audioCountdown.textContent = '';
@@ -1583,9 +1576,6 @@
                             audioCountdown.style.display = 'none';
                             audioCountdown.textContent = '';
                             playPauseBtn.disabled = false; 
-                            if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-                                // COMENTADO: updateTimelineDisplay(selectedAudioElement); // La visualización del tiempo está comentada
-                            }
                         }
                     }, 1000); 
                 }
@@ -1597,9 +1587,6 @@
                 }
                 audioCountdown.style.display = 'none';
                 audioCountdown.textContent = '';
-                if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-                    // COMENTADO: updateTimelineDisplay(selectedAudioElement); // La visualización del tiempo está comentada
-                }
             }
         }
 
@@ -1609,6 +1596,12 @@
             deselectAllElements();
 
             if (element.classList && element.classList.contains('element-wrapper')) {
+                // IMPORTANT: Only select if element is ready for interaction
+                if (element.dataset.readyForInteraction === 'false') {
+                    console.log(`[SELECT_BLOCKED] Element ${element.id} not ready for interaction, cannot select.`);
+                    return;
+                }
+
                 console.log(`[SELECT] Selecting VISUAL element: ${element.id}`);
                 selectedElementWrapper = element;
                 selectedElementWrapper.classList.add('selected');
@@ -1779,13 +1772,11 @@
 
             // Enable audio controls
             volumeRange.disabled = false;
-            // COMENTADO: timelineRange.disabled = false; // La barra de línea de tiempo está comentada
 
             audioElement.muted = isMutedGlobally;
             volumeRange.value = audioElement.volume;
             volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
             updatePlayPauseButton(audioElement.paused);
-            // COMENTADO: updateTimelineDisplay(audioElement); // La visualización del tiempo está comentada
             currentAudioNameDisplay.textContent = audioElement.dataset.originalName || 'Audio Seleccionado';
             
             checkAudioReadyState(audioElement);
@@ -1837,6 +1828,15 @@
                     name = `Unknown element: ${elementWrapper.id}`;
                 }
                 layerItem.textContent = name;
+
+                // Indicate pending state for layer items that are not ready
+                if (elementWrapper.dataset.readyForInteraction === 'false') {
+                    layerItem.style.opacity = '0.5'; // Indicate pending state
+                    layerItem.style.pointerEvents = 'none'; // Make it non-clickable
+                } else {
+                    layerItem.style.opacity = '1';
+                    layerItem.style.pointerEvents = 'auto';
+                }
 
                 if (selectedElementWrapper && selectedElementWrapper.id === elementWrapper.id) {
                     layerItem.classList.add('selected');
@@ -1950,7 +1950,7 @@
                 id: newId,
                 originalName: file.name
             };
-            console.log(`[LOCAL_CREATE] Creating local element with ID: ${newId}, Name: ${file.name}`);
+            console.log(`[LOCAL_CREATE_AND_SEND] Initiating local creation and send for ID: ${newId}, Name: ${file.name}`);
 
             if (file.type.startsWith('image/') || file.type.startsWith('image/gif')) {
                 const wrapperDiv = document.createElement('div');
@@ -1961,6 +1961,11 @@
                 wrapperDiv.style.zIndex = getNextHighestZIndex();
                 applyElementTransform(wrapperDiv, 0, 1);
                 wrapperDiv.style.opacity = '1';
+                
+                // Set initial state to hidden and non-interactive, awaiting server confirmation
+                wrapperDiv.style.visibility = 'hidden'; 
+                wrapperDiv.style.pointerEvents = 'none'; 
+                wrapperDiv.dataset.readyForInteraction = 'false'; // Set to false locally
 
                 const contentElement = document.createElement('img');
                 contentElement.src = srcData;
@@ -1996,11 +2001,7 @@
                     
                     addHandles(wrapperDiv);
                     
-                    wrapperDiv.style.visibility = 'visible'; 
-                    wrapperDiv.style.pointerEvents = 'auto'; 
-                    wrapperDiv.dataset.readyForInteraction = 'true'; 
-
-                    mainCanvasWrapper.appendChild(wrapperDiv);
+                    mainCanvasWrapper.appendChild(wrapperDiv); // Add to DOM, but hidden initially
                     allElements.set(wrapperDiv.id, wrapperDiv);
 
                     wrapperDiv.dataset.initialAspectRatio = aspectRatio;
@@ -2021,9 +2022,10 @@
                         type: file.type.startsWith('image/gif') ? 'gif' : 'img', 
                         src: srcData,
                         initialAspectRatio: aspectRatio,
-                        visibility: 'visible', 
-                        readyForInteraction: 'true' 
+                        visibility: 'hidden', // Still hidden locally for sending
+                        readyForInteraction: 'false' // Explicitly false for sending
                     };
+                    console.log(`[LOCAL_CREATE_AND_SEND] Sending visual element to server with readyForInteraction: ${elementState.readyForInteraction}`);
                     sendWebSocketMessage('elementAdd', { element: elementState });
                 };
                 if (contentElement.complete) {
@@ -2041,7 +2043,8 @@
                 audioElement.dataset.originalName = file.name;
                 audioElement.dataset.type = 'audio';
                 audioElement.dataset.readyTimestamp = Date.now() + AUDIO_PLAY_DELAY_MS; 
-                audioElement.preload = "metadata"; // Cambiado a "metadata"
+                audioElement.dataset.readyForInteraction = 'false'; // Set to false locally
+                audioElement.preload = "metadata"; // Changed to "metadata"
 
                 if (audioDuration !== null) {
                     audioElement.duration = audioDuration; 
@@ -2051,7 +2054,6 @@
                 addAudioItemToPlaylistUI(audioElement);
                 updateFileCountDisplay();
                 
-                // Flag to ensure this prep logic runs only once for this newly uploaded audio
                 let isNewLocalAudioBeingPrepared = true;
 
                 audioElement.addEventListener('canplaythrough', function onCanPlayThroughPrep() {
@@ -2066,7 +2068,6 @@
                         console.log(`[AUDIO_PREP] Quick play/pause successful for ${audioElement.id}. Audio should be ready.`);
                         isNewLocalAudioBeingPrepared = false; 
 
-                        // Send the elementAdd message *after* this audio element is fully prepped locally
                         const finalElementState = {
                             ...elementState, 
                             type: 'audio',
@@ -2079,11 +2080,12 @@
                             lastVolume: audioElement.dataset.lastVolume,
                             muted: audioElement.muted,
                             readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), 
-                            left: '0px', top: '0px', width: '0px', height: '0px',
-                            rotation: 0, scale: 1, zIndex: 0, opacity: 1,
-                            visibility: 'visible',
-                            readyForInteraction: 'true'
+                            left: '0px', top: '0px', width: '0px', height: '0px', 
+                            rotation: 0, scale: 1, zIndex: 0, opacity: 1, 
+                            visibility: 'hidden', // Audio is not visible on canvas, just logically 'hidden' from interaction till ready
+                            readyForInteraction: 'false' // Explicitly false for sending
                         };
+                        console.log(`[LOCAL_CREATE_AND_SEND] Sending audio element to server with readyForInteraction: ${finalElementState.readyForInteraction}`);
                         sendWebSocketMessage('elementAdd', { element: finalElementState });
 
                     }).catch(e => {
@@ -2093,8 +2095,9 @@
                         // If prep fails, still send the initial state to server, but log the warning.
                         const finalElementState = {
                             ...elementState,
-                            type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime, paused: audioElement.paused, isPlaying: !audioElement.paused, duration: audioElement.duration, lastVolume: audioElement.dataset.lastVolume, muted: audioElement.muted, readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), left: '0px', top: '0px', width: '0px', height: '0px', rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'visible', readyForInteraction: 'true'
+                            type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime, paused: audioElement.paused, isPlaying: !audioElement.paused, duration: audioElement.duration, lastVolume: audioElement.dataset.lastVolume, muted: audioElement.muted, readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), left: '0px', top: '0px', width: '0px', height: '0px', rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', readyForInteraction: 'false'
                         };
+                        console.log(`[LOCAL_CREATE_AND_SEND] Sending audio element to server with readyForInteraction: ${finalElementState.readyForInteraction} (after prep error)`);
                         sendWebSocketMessage('elementAdd', { element: finalElementState });
                     });
                 });
@@ -2140,9 +2143,10 @@
             wrapperDiv.style.width = 'auto';
             wrapperDiv.style.height = 'auto';
             wrapperDiv.dataset.originalName = 'Text Element';
-            wrapperDiv.dataset.readyForInteraction = 'true'; 
-            wrapperDiv.style.visibility = 'visible'; 
-            wrapperDiv.style.pointerEvents = 'auto';
+            // Set initial state to hidden and non-interactive, awaiting server confirmation
+            wrapperDiv.dataset.readyForInteraction = 'false'; // Set to false locally
+            wrapperDiv.style.visibility = 'hidden'; 
+            wrapperDiv.style.pointerEvents = 'none';
 
 
             const textDiv = document.createElement('div');
@@ -2183,10 +2187,11 @@
 
             wrapperDiv.appendChild(textDiv);
             addHandles(wrapperDiv);
-            mainCanvasWrapper.appendChild(wrapperDiv);
+            mainCanvasWrapper.appendChild(wrapperDiv); // Add to DOM, but hidden initially
             allElements.set(wrapperDiv.id, wrapperDiv);
             adjustTextElementWrapperSize(wrapperDiv);
-            textDiv.focus(); 
+            // Don't focus immediately, as it's hidden
+            // textDiv.focus(); 
 
             updateLayersList();
             updateFileCountDisplay();
@@ -2213,14 +2218,16 @@
                 outlineColor: textDiv.style.webkitTextStrokeColor,
                 hasTextBackground: (textDiv.style.backgroundColor !== 'transparent'),
                 hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0),
-                visibility: 'visible', 
-                readyForInteraction: 'true' 
+                visibility: 'hidden', // Still hidden locally for sending
+                readyForInteraction: 'false' // Explicitly false for sending
             };
+            console.log(`[LOCAL_CREATE_AND_SEND] Sending text element to server with readyForInteraction: ${elementState.readyForInteraction}`);
             sendWebSocketMessage('elementAdd', { element: elementState });
         });
 
         textInput.addEventListener('input', () => {
-            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') {
+            // Only update and send if selected element is ready for interaction
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const contentElement = selectedElementWrapper.querySelector('.element-content');
                 if (contentElement && contentElement.classList.contains('text-content')) {
                     contentElement.textContent = textInput.value;
@@ -2250,7 +2257,7 @@
                     type: 'audio',
                     src: element.src,
                     volume: element.volume,
-                    currentTime: element.currentTime, // Se mantiene para enviar la posición actual al cambiar estado de play/pause/volumen
+                    currentTime: element.currentTime, 
                     paused: element.paused,
                     isPlaying: !element.paused, 
                     duration: element.duration,
@@ -2259,10 +2266,10 @@
                     publicId: element.dataset.publicId,
                     muted: element.muted, 
                     readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now()), 
-                    left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1,
-                    visibility: 'visible', 
-                    readyForInteraction: 'true' 
+                    left: '0px', top: '0px', width: '0px', height: '0px', // Audio elements don't have visual position
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1, // Default visual properties for non-visual audio
+                    visibility: 'hidden', // Audio is not visible on canvas
+                    readyForInteraction: element.dataset.readyForInteraction || 'true' // Reflect current ready state
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
                 console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
@@ -2414,18 +2421,22 @@
                     clonedWrapper.dataset.publicId = originalState.publicId;
                 }
 
-                clonedWrapper.dataset.readyForInteraction = 'true'; 
-                clonedWrapper.style.visibility = 'visible';
-                clonedWrapper.style.pointerEvents = 'auto';
+                // New cloned element also starts as hidden, awaiting server confirmation
+                clonedWrapper.dataset.readyForInteraction = 'false'; // Set to false locally
+                clonedWrapper.style.visibility = 'hidden';
+                clonedWrapper.style.pointerEvents = 'none';
                 
-                mainCanvasWrapper.appendChild(clonedWrapper);
+                mainCanvasWrapper.appendChild(clonedWrapper); // Add to DOM, but hidden initially
                 allElements.set(newId, clonedWrapper);
 
                 updateLayersList();
                 updateFileCountDisplay();
-                selectElement(clonedWrapper); 
+                // Don't select immediately, wait for server broadcast
                 
                 const clonedState = getElementState(clonedWrapper);
+                clonedState.visibility = 'hidden'; // Ensure it's sent as hidden
+                clonedState.readyForInteraction = 'false'; // Ensure it's sent as not ready
+                console.log(`[DUPLICATE] Sending cloned element to server with readyForInteraction: ${clonedState.readyForInteraction}`);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
             }
         });
@@ -2716,18 +2727,6 @@
             }
         });
 
-        // COMENTADO: timelineRange.addEventListener('input', ...); // Event listener para la línea de tiempo está comentado
-        /*
-        timelineRange.addEventListener('input', () => {
-            if (selectedAudioElement) {
-                selectedAudioElement.currentTime = timelineRange.value;
-                updateTimelineDisplay(selectedAudioElement);
-                // Send immediately on manual scrub, don't throttle
-                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
-            }
-        });
-        */
-
         bringToFrontBtn.addEventListener('click', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 selectedElementWrapper.style.zIndex = getNextHighestZIndex();
@@ -2753,6 +2752,7 @@
             if (clickedWrapper) {
                 if (clickedWrapper.dataset.readyForInteraction === 'false') {
                     e.preventDefault();
+                    console.log(`[MOUSEDOWN_BLOCKED] Element ${clickedWrapper.id} not ready for interaction.`);
                     return;
                 }
                 e.stopPropagation();
@@ -3006,8 +3006,10 @@
 
             if (e.touches.length === 1) {
                 if (clickedWrapper) {
+                    // Prevent interaction if not ready
                     if (clickedWrapper.dataset.readyForInteraction === 'false') {
                         e.preventDefault();
+                        console.log(`[TOUCHSTART_BLOCKED] Element ${clickedWrapper.id} not ready for interaction.`);
                         return;
                     }
                     if (target.classList.contains('resize-handle')) {
@@ -3275,7 +3277,13 @@
 
                     if (tabId === 'properties' && selectedElementWrapper) {
                         console.log("[TAB_CHANGE] Re-selecting previously selected visual element.");
-                        selectElement(selectedElementWrapper);
+                        // Only select if it's ready for interaction
+                        if (selectedElementWrapper.dataset.readyForInteraction === 'true') {
+                            selectElement(selectedElementWrapper);
+                        } else {
+                            // If it's not ready, deselect it
+                            deselectAllElements();
+                        }
                     }
                 }
             });
@@ -3286,8 +3294,10 @@
             const target = e.target.closest('.layer-item');
             if (target) {
                 const elementOnCanvas = allElements.get(target.dataset.id);
+                // Prevent dragging if element is not ready for interaction
                 if (elementOnCanvas && elementOnCanvas.dataset.readyForInteraction === 'false') {
                     e.preventDefault(); 
+                    console.log(`[DRAG_BLOCKED] Element ${elementOnCanvas.id} not ready for interaction, cannot drag.`);
                     return;
                 }
                 draggedLayer = target;
@@ -3327,7 +3337,8 @@
                 layersInNewOrder.forEach((layerItem, index) => {
                     if (layerItem.dataset.id) {
                         const elementWrapper = allElements.get(layerItem.dataset.id);
-                        if (elementWrapper) {
+                        // Ensure only ready elements are sent for reorder, and update their zIndex
+                        if (elementWrapper && elementWrapper.dataset.readyForInteraction === 'true') {
                             const newZIndex = maxZ - index;
                             elementWrapper.style.zIndex = newZIndex;
                             updatedElementsForReorder.push({ id: elementWrapper.id, zIndex: newZIndex });
