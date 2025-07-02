@@ -7,21 +7,31 @@
     <link rel="icon" href="./cat.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --theme-main-accent: #8B5CF6; /* Default purple */
+            --theme-main-accent-dark: #7C3AED; /* Darker purple for hover/active */
+            --theme-main-accent-light: #A78BFA; /* Lighter purple for some elements */
+            --theme-main-accent-lighter: #C4B5FD; /* Even lighter for text/focus */
+            --theme-sidebar-main-bg: #1a202c; /* Default body/sidebar dark background */
+            --theme-left-sidebar-bg-rgb: 16, 185, 129; /* Default green RGB for transparency */
+            --theme-left-sidebar-border: #4ade80; /* Default green border */
+        }
+
         body {
             font-family: "Inter", sans-serif;
             overflow: hidden;
-            background-color: #1a202c;
+            background-color: var(--theme-sidebar-main-bg);
         }
         .element-wrapper {
             position: absolute;
             cursor: grab;
             user-select: none;
             box-sizing: border-box;
-            transition: box-shadow 0.1s ease-in-out, opacity 0.5s ease-in-out; /* Re-added opacity transition */
-            will-change: transform, left, top, opacity; /* Re-added opacity to will-change */
+            transition: box-shadow 0.1s ease-in-out, opacity 0.5s ease-in-out;
+            will-change: transform, left, top, opacity;
         }
         .element-wrapper.selected {
-            box-shadow: 0 0 0 2px #8B5CF6;
+            box-shadow: 0 0 0 2px var(--theme-main-accent);
             cursor: grabbing;
         }
         .text-element-wrapper {
@@ -58,7 +68,7 @@
             position: absolute;
             width: 10px;
             height: 10px;
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             border: 1px solid #ffffff;
             cursor: grab;
             z-index: 1000;
@@ -74,7 +84,7 @@
             transform: translateX(-50%);
             width: 20px;
             height: 20px;
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             border-radius: 50%;
             border: 1px solid #ffffff;
             cursor: grab;
@@ -104,13 +114,6 @@
             background-color: #4A5568;
             color: #FFFFFF;
         }
-        .tab-content {
-            display: none;
-            padding-top: 0.5rem;
-        }
-        .tab-content.active {
-            display: block;
-        }
         .layer-item {
             display: flex;
             align-items: center;
@@ -118,14 +121,14 @@
             background-color: #2D3748;
             margin-bottom: 0.5rem;
             cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
+            transition: background-color 0.2s ease-in-out, opacity 0.2s ease-in-out;
             color: #E2E8F0;
         }
         .layer-item:hover {
             background-color: #4A5568;
         }
         .layer-item.selected {
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             color: #FFFFFF;
         }
         .audio-list-item {
@@ -144,15 +147,15 @@
             background-color: #4A5568;
         }
         .audio-list-item.selected {
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             color: #FFFFFF;
         }
         .audio-list-item button svg {
-            pointer-events: none; /* Ensures clicks pass through SVG to the button */
+            pointer-events: none;
         }
         button.active-style {
-            background-color: #8B5CF6;
-            border: 1px solid #7C3AED;
+            background-color: var(--theme-main-accent);
+            border: 1px solid var(--theme-main-accent-dark);
         }
         .reset-button {
             background: none;
@@ -217,7 +220,7 @@
         input[type="range"].w-full::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             border: 1px solid #FFFFFF;
             border-radius: 50%;
             height: 16px;
@@ -230,7 +233,7 @@
             height: 4px;
         }
         input[type="range"].w-full::-moz-range-thumb {
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             border: 1px solid #FFFFFF;
             border-radius: 50%;
             height: 16px;
@@ -256,8 +259,8 @@
         #leftSidebar {
             width: 200px;
             height: 720px;
-            background-color: rgba(16, 185, 129, 0.5);
-            border: 2px dashed #4ade80;
+            background-color: rgba(var(--theme-left-sidebar-bg-rgb), 0.5);
+            border: 2px dashed var(--theme-left-sidebar-border);
             margin-right: 1rem;
             flex-shrink: 0;
         }
@@ -281,12 +284,12 @@
         }
         #dropArea.highlight {
             background-color: #4A5568;
-            border-color: #8B5CF6;
+            border-color: var(--theme-main-accent);
         }
         #newZoomRange::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             border: 1px solid #FFFFFF;
             border-radius: 50%;
             height: 16px;
@@ -294,7 +297,7 @@
             margin-top: -5px;
         }
         #newZoomRange::-moz-range-thumb {
-            background-color: #8B5CF6;
+            background-color: var(--theme-main-accent);
             border: 1px solid #FFFFFF;
             border-radius: 50%;
             height: 16px;
@@ -359,7 +362,7 @@
             font-size: 1.25rem;
             font-weight: 700;
             margin-bottom: 1rem;
-            color: #8B5CF6;
+            color: var(--theme-main-accent);
         }
         .modal-message {
             font-size: 1rem;
@@ -397,19 +400,48 @@
         .modal-button.sound:hover {
             background-color: #059669;
         }
-        /* New style for single OK button */
         .modal-button.ok {
-            background-color: #8B5CF6; /* Purple color */
+            background-color: var(--theme-main-accent);
             color: #FFFFFF;
-            border: 1px solid #7C3AED;
+            border: 1px solid var(--theme-main-accent-dark);
         }
         .modal-button.ok:hover {
-            background-color: #7C3AED;
+            background-color: var(--theme-main-accent-dark);
+        }
+        /* Custom styling for the theme color picker */
+        #themeColorPicker {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 64px; /* w-16 */
+            height: 64px; /* h-16 */
+            border: none;
+            border-radius: 50%;
+            padding: 0;
+            cursor: pointer;
+            background-color: transparent; /* Ensures the chosen color is visible */
+        }
+        #themeColorPicker::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        #themeColorPicker::-webkit-color-swatch {
+            border: 2px solid #fff; /* White border for visibility */
+            border-radius: 50%;
+        }
+        #themeColorPicker::-moz-color-swatch {
+            border: 2px solid #fff; /* White border for visibility */
+            border-radius: 50%;
+        }
+        .tab-content {
+            display: none;
+            padding-top: 0.5rem;
+        }
+        .tab-content.active {
+            display: block;
         }
     </style>
 </head>
 <body class="h-screen flex text-gray-800">
-    <!-- El spinner de carga ha sido eliminado -->
     <div id="mutePreferenceModal" class="modal-overlay">
         <div class="modal-dialog">
             <h3 class="modal-title">¡Atención!</h3>
@@ -425,9 +457,9 @@
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col sidebar-scroll text-gray-200 pt-4 z-20">
         <div class="border-b pb-2 border-gray-700 px-4">
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
-            <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center">
+            <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 <span id="selectFileButtonText">Seleccionar archivo</span>
-                <input type="file" id="imageUpload" accept="image/*, .gif, audio/mpeg" class="block w-full text-sm text-gray-400">
+                <input type="file" id="imageUpload" accept="image/*, audio/*" class="block w-full text-sm text-gray-400">
             </div>
             <span id="fileCountDisplay" class="block text-xs text-gray-400 mt-2 text-center">0/50</span>
             <div id="dropArea">Arrastra y suelta archivos aquí</div>
@@ -440,7 +472,7 @@
             <button class="tab-button flex-1 text-center" data-tab="layers">Capas</button>
         </div>
         <div id="tab-content-properties" class="tab-content active flex-grow px-4">
-            <h2 class="text-lg font-semibold mb-4 text-purple-400">Controles de Elemento</h2>
+            <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Controles de Elemento</h2>
             <div class="mb-4">
                 <label for="opacityRange" class="block text-sm font-medium text-gray-300 mb-2">Opacidad</label>
                 <div class="flex items-center space-x-2">
@@ -465,7 +497,6 @@
                     </button>
                 </div>
             </div>
-            <!-- Nueva barra de tamaño -->
             <div class="mb-6">
                 <label for="sizeRange" class="block text-sm font-medium text-gray-300 mb-2">Tamaño</label>
                 <div class="flex items-center space-x-2">
@@ -478,8 +509,7 @@
                     </button>
                 </div>
             </div>
-            <!-- Fin de nueva barra de tamaño -->
-            <button id="duplicateElementBtn" disabled class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-3 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button id="duplicateElementBtn" disabled class="w-full text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-3 disabled:opacity-50 disabled:cursor-not-allowed" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 Duplicar elemento
             </button>
             <button id="bringToFrontBtn" disabled class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-3 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -491,11 +521,11 @@
         </div>
         <div id="tab-content-text" class="tab-content flex-grow px-4">
             <label for="textInput" class="block text-sm font-medium text-gray-300 mb-2">Contenido del Texto</label>
-            <textarea id="textInput" class="w-full p-2 border border-gray-600 bg-gray-700 text-gray-100 focus:outline-none focus:ring-purple-400" rows="3" placeholder="Escribe aquí el texto"></textarea>
-            <button id="addTextBtn" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-4">
+            <textarea id="textInput" class="w-full p-2 border border-gray-600 bg-gray-700 text-gray-100 focus:outline-none focus:ring-purple-400" rows="3" placeholder="Escribe aquí el texto" style="--tw-ring-color: var(--theme-main-accent-lighter);"></textarea>
+            <button id="addTextBtn" class="w-full text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-4" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 Añadir Texto al Lienzo
             </button>
-            <h3 class="text-md font-semibold mb-2 text-purple-400 mt-6">Ajustes de Estilo de Texto</h3>
+            <h3 class="text-md font-semibold mb-2" style="color: var(--theme-main-accent-light);">Ajustes de Estilo de Texto</h3>
             <div class="flex space-x-2 mb-4">
                 <button id="boldTextBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 shadow-md transition-all duration-200">
                     Negrita
@@ -519,7 +549,7 @@
                 <div class="flex items-center justify-between space-x-2">
                     <label for="toggleTextBg" class="text-sm font-medium text-gray-300 cursor-pointer">Fondo del Texto</label>
                     <div class="flex items-center space-x-2">
-                        <input type="checkbox" id="toggleTextBg" class="h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 focus:ring-purple-500">
+                        <input type="checkbox" id="toggleTextBg" class="h-4 w-4 bg-gray-700 border-gray-600 focus:ring-purple-500" style="color: var(--theme-main-accent); --tw-ring-color: var(--theme-main-accent-lighter);">
                         <label for="toggleTextBg" class="text-sm font-medium text-gray-300 cursor-pointer">Activar</label>
                     </div>
                 </div>
@@ -532,7 +562,7 @@
                 <div class="flex items-center justify-between space-x-2">
                     <label for="toggleTextOutline" class="text-sm font-medium text-gray-300 cursor-pointer">Contorno del Texto</label>
                     <div class="flex items-center space-x-2">
-                        <input type="checkbox" id="toggleTextOutline" class="h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 focus:ring-purple-500">
+                        <input type="checkbox" id="toggleTextOutline" class="h-4 w-4 bg-gray-700 border-gray-600 focus:ring-purple-500" style="color: var(--theme-main-accent); --tw-ring-color: var(--theme-main-accent-lighter);">
                         <label for="toggleTextOutline" class="text-sm font-medium text-gray-300 cursor-pointer">Activar</label>
                     </div>
                 </div>
@@ -548,10 +578,13 @@
             </div>
         </div>
         <div id="tab-content-audio" class="tab-content flex-grow px-4">
-            <h2 class="text-lg font-semibold mb-4 text-purple-400">Controles de Audio</h2>
+            <div class="text-xs text-gray-400 mb-2">
+                *Al añadir un MP3, el servidor se desconectará durante 5s. El audio no se escuchará hasta que se vuelva a conectar.
+            </div>
+            <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Controles de Audio</h2>
             <span id="currentAudioName" class="block text-sm font-medium text-gray-400 mb-2"></span>
             <div class="flex items-center justify-center space-x-4 mb-4">
-                <button id="playPauseBtn" disabled class="bg-purple-600 hover:bg-purple-700 text-white font-bold p-3 rounded-full shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button id="playPauseBtn" disabled class="text-white font-bold p-3 rounded-full shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                     <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
                         <path fill-rule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.38 2.872-1.667l11.553 6.917c1.164.696 1.164 2.67 0 3.366l-11.553 6.917C6.029 21.38 4.5 20.426 4.5 19.0V5.653Z" clip-rule="evenodd" />
                     </svg>
@@ -568,8 +601,6 @@
                     <span id="volumeValue" class="text-xs text-gray-400 w-10 text-right">50%</span>
                 </div>
             </div>
-            <!-- INICIO - CÓDIGO DE LA LÍNEA DE TIEMPO (COMENTADO) -->
-            <!--
             <div class="mb-4">
                 <label for="timelineRange" class="block text-sm font-medium text-gray-300 mb-2">Línea de tiempo</label>
                 <div class="flex items-center space-x-2">
@@ -577,17 +608,22 @@
                     <span id="currentTimeDisplay" class="text-xs text-gray-400 w-16 text-right">0:00 / 0:00</span>
                 </div>
             </div>
-            -->
-            <!-- FIN - CÓDIGO DE LA LÍNEA DE TIEMPO (COMENTADO) -->
-            <h3 class="text-md font-semibold mb-2 text-purple-400 mt-6">Audios Subidos</h3>
+            <h3 class="text-md font-semibold mb-2" style="color: var(--theme-main-accent-light);">Audios Subidos</h3>
             <div id="audioPlaylist" class="space-y-2">
                 <p class="text-gray-400 text-sm">No hay audios subidos.</p>
             </div>
         </div>
         <div id="tab-content-layers" class="tab-content flex-grow px-4">
-            <h2 class="text-lg font-semibold mb-4 text-purple-400">Capas de Elementos</h2>
+            <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Capas de Elementos</h2>
             <div id="layersList" class="space-y-2">
                 <p class="text-gray-400 text-sm">No hay elementos en la página.</p>
+            </div>
+        </div>
+
+        <div class="mt-auto p-4 border-t border-gray-700">
+            <h3 class="text-md font-semibold mb-2" style="color: var(--theme-main-accent-light);">Cambiar Tema</h3>
+            <div class="flex items-center justify-center">
+                <input type="color" id="themeColorPicker" value="#8B5CF6">
             </div>
         </div>
     </aside>
@@ -598,7 +634,7 @@
             </div>
         </div>
     </main>
-    <div class="absolute bottom-4 right-4 bg-gray-800 p-2 rounded-lg shadow-xl z-50 flex items-center space-x-2 zoom-controls">
+    <div class="absolute bottom-4 right-4 bg-gray-800 p-2 rounded-lg shadow-xl z-50 flex items-center space-x-2 zoom-controls" style="background-color: var(--theme-sidebar-main-bg);">
         <label for="newZoomRange" class="text-sm font-medium text-gray-300">Zoom</label>
         <input type="range" id="newZoomRange" min="0.25" max="2.0" step="0.05" value="1.0" class="w-24 h-2 bg-gray-700 appearance-none cursor-pointer">
         <span id="zoomValue" class="text-xs text-gray-400">100%</span>
@@ -658,6 +694,9 @@
         const modalMuteBtn = document.getElementById('modalMuteBtn');
         const modalSoundBtn = document.getElementById('modalSoundBtn');
         const audioCountdown = document.getElementById('audioCountdown');
+        const timelineRange = document.getElementById('timelineRange');
+        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const themeColorPicker = document.getElementById('themeColorPicker');
 
 
         let selectedElementWrapper = null;
@@ -671,18 +710,16 @@
         let initialRotationAngle = 0;
         let initialElementRotation = 0;
         let currentZoom = 1.0;
-        let isMutedGlobally = true; // Valor inicial para que el modal pida la preferencia
+        let isMutedGlobally = true;
         const allElements = new Map();
         const WS_URL = 'wss://pagina-mods-websocket-server.onrender.com';
-        let ws = null; // Initialize to null
-        let reconnectInterval = null; // Initialize to null
-        let audioCountdownInterval = null; // New: for audio countdown
+        let ws = null;
+        let reconnectInterval = null;
+        let audioCountdownInterval = null;
 
-        // New variables for user identification
         let myUserId = 'user-' + Math.random().toString(36).substr(2, 9);
-        let myUserColor = getRandomColor(); // Function to generate a random color
+        let myUserColor = getRandomColor();
 
-        // Function to generate a random hexadecimal color
         function getRandomColor() {
             const letters = '0123456789ABCDEF';
             let color = '#';
@@ -692,26 +729,20 @@
             return color;
         }
 
-        // Throttle constant for sending updates
         const DRAG_SEND_THROTTLE_MS = 80; 
-        let dragSendTimeout = null; // Throttle timeout variable
-        let pendingDOMUpdateAnimationFrame = null; // Variable to control requestAnimationFrame for updates
+        let dragSendTimeout = null;
+        let pendingDOMUpdateAnimationFrame = null;
 
-        // Constants for delays - Visual elements still have a delay for appearance
-        const ELEMENT_VISIBILITY_DELAY_MS = 2000; // 2 seconds delay for visual elements
+        const ELEMENT_VISIBILITY_DELAY_MS = 2000;
 
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                console.log('[WS_CONNECT] WebSocket already connected. State:', ws.readyState);
                 return;
             }
             updateWsStatus('connecting');
-            console.log('[WS_CONNECT] Attempting to connect to WebSocket server...');
 
 
-            // Clear any existing reconnect interval before attempting a new connection
             if (reconnectInterval) {
-                console.log('[WS_CONNECT] Clearing existing reconnect interval.');
                 clearInterval(reconnectInterval);
                 reconnectInterval = null;
             }
@@ -719,35 +750,28 @@
             try {
                 ws = new WebSocket(WS_URL);
             } catch (e) {
-                console.error('[WS_CONNECT_ERROR] Failed to create WebSocket:', e.message || e);
-                // Start reconnection attempts only if not already running
                 if (!reconnectInterval) {
-                    console.log('[WS_CONNECT] Starting reconnection attempts in 5 seconds...');
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
-                return; // Stop here if creation failed
+                return;
             }
 
 
             ws.onopen = () => {
-                console.log('[WS_EVENT] Connected to WebSocket server. State:', ws.readyState);
                 updateWsStatus('connected');
-                if (reconnectInterval) { // Clear interval if successfully connected
+                if (reconnectInterval) {
                     clearInterval(reconnectInterval);
                     reconnectInterval = null;
                 }
-                // IMPORTANT: Send user connection information on open
                 sendWebSocketMessage('userConnect', { userId: myUserId, userName: `Usuario ${myUserId.slice(-4)}`, userColor: myUserColor });
             };
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
                 if (message.type === 'initialState') {
-                    console.log('[WS_MESSAGE_RECEIVED] Received initialState. Clearing existing elements and re-rendering.');
                     allElements.clear();
                     mainCanvasWrapper.querySelectorAll('.element-wrapper').forEach(el => el.remove());
                     audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
-                    // Do NOT auto-select any audio on initial state load
                     selectedAudioElement = null; 
                     if (audioCountdownInterval) {
                         clearInterval(audioCountdownInterval);
@@ -757,9 +781,8 @@
 
                     message.elements.forEach(data => {
                         if (data.type === 'audio') {
-                            // Ensure audio ready timestamp is correctly passed or calculated for display
                             if (!data.readyTimestamp) {
-                                data.readyTimestamp = Date.now(); // Assume instant if not provided by server
+                                data.readyTimestamp = Date.now();
                             }
                             createAudioElementAndAddToPlaylist(data);
                         } else {
@@ -769,23 +792,17 @@
 
                     updateLayersList();
                     updateAudioPlaylistDisplay();
-                    deselectAllElements();
+                    updateFileCountDisplay(); 
                 } else if (message.type === 'elementAdd') {
-                    console.log(`[WS_MESSAGE_RECEIVED] elementAdd for ID: ${message.element.id}, type: ${message.element.type}, readyForInteraction from server (raw): ${message.element.readyForInteraction}`);
 
                     if (allElements.has(message.element.id)) {
-                        console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} already exists locally, updating.`);
                         updateElementFromData(message.element);
                     } else {
-                        console.log(`[WS_MESSAGE_RECEIVED] Element ${message.element.id} is new, creating it.`);
-                        // For audio, `createAudioElementAndAddToPlaylist` now handles the delay check internally
-                        // If it's an audio from another client, it will be added to the UI immediately but controlled by readyForInteraction
-                        // If it's a visual element, it's handled by createElementFromData
                         if (message.element.type === 'audio') {
                             if (!message.element.readyTimestamp) {
                                 message.element.readyTimestamp = Date.now();
                             }
-                            createAudioElementAndAddToPlaylist(message.element); // This will add to UI immediately for remote clients
+                            createAudioElementAndAddToPlaylist(message.element);
                         } else {
                             createElementFromData(message.element);
                         }
@@ -794,18 +811,15 @@
                     updateAudioPlaylistDisplay();
                     updateFileCountDisplay();
                 } else if (message.type === 'elementUpdate') {
-                    console.log(`[WS_MESSAGE_RECEIVED] elementUpdate for ID: ${message.element.id}, type: ${message.element.type}, readyForInteraction from server (raw): ${message.element.readyForInteraction}`);
                     updateElementFromData(message.element);
                     updateLayersList();
                     updateAudioPlaylistDisplay();
                 } else if (message.type === 'elementDelete') {
-                    console.log(`[WS_MESSAGE_RECEIVED] elementDelete for ID: ${message.elementId}`);
                     deleteElementFromData(message.elementId);
                     updateLayersList();
                     updateAudioPlaylistDisplay();
                     updateFileCountDisplay();
                 } else if (message.type === 'reorderLayers') {
-                    console.log(`[WS_MESSAGE_RECEIVED] reorderLayers.`);
                     message.elements.forEach(elementData => {
                         const elementWrapper = allElements.get(elementData.id);
                         if (elementWrapper && elementWrapper.style) {
@@ -813,30 +827,21 @@
                         }
                     });
                     updateLayersList();
-                }
-                else if (message.type === 'ping') {
-                    // console.log("[WS_MESSAGE_RECEIVED] Received ping, ignoring."); // Too verbose for every ping
+                } else if (message.type === 'ping') {
                 } else {
-                    console.warn('[WS_MESSAGE_RECEIVED] Unknown message type:', message.type, message);
                 }
             };
 
             ws.onclose = (event) => {
-                console.log(`[WS_EVENT] Disconnected from WebSocket server. Code: ${event.code}, Reason: ${event.reason}. Was clean: ${event.wasClean}.`);
-                ws = null; // Clear the WebSocket instance
+                ws = null;
                 updateWsStatus('disconnected');
-                // Start reconnection attempts only if not already running
                 if (!reconnectInterval) {
-                    console.log('[WS_CLOSE] Starting reconnection attempts in 5 seconds...');
                     reconnectInterval = setInterval(connectWebSocket, 5000);
                 }
-                // Inform the server about disconnection (if it's not a planned closure)
                 sendWebSocketMessage('userDisconnect', { userId: myUserId });
             };
 
             ws.onerror = (err) => {
-                // The 'error' event usually precedes 'close', so onclose will handle reconnection.
-                console.error(`[WS_EVENT] WebSocket error occurred:`, err.message || err.code || JSON.stringify(err));
             };
         }
 
@@ -844,12 +849,9 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 try {
                     ws.send(JSON.stringify({ type, ...data }));
-                    // console.log(`[WS_SENT] Message sent: ${type}`); // Too verbose for every send
                 } catch (e) {
-                    console.error(`[WS_SEND_ERROR] Error sending message of type ${type}:`, e.message || e);
                 }
             } else {
-                console.error(`[WS_SEND_FAILED] WebSocket not connected (readyState: ${ws ? ws.readyState : 'null'}), could not send message: ${type}`, data);
             }
         }
 
@@ -976,23 +978,18 @@
             if (storedMuteState !== null) {
                 isMutedGlobally = JSON.parse(storedMuteState);
             } else {
-                // Por defecto, asumir "con sonido" si no hay preferencia guardada.
-                // El modal aún se mostrará para que el usuario elija.
                 isMutedGlobally = false; 
             }
         }
 
-        // Helper function to apply rotation and scale
         function applyElementTransform(element, rotation, scale) {
             element.style.transform = `rotate(${rotation}deg) scale(${scale})`;
         }
 
         function createElementFromData(data) {
-            console.log(`[CREATE_ELEMENT] Creating element ID: ${data.id}, Type: ${data.type}`);
             if (allElements.has(data.id)) {
                 const existingElement = allElements.get(data.id);
                 if (existingElement.classList && existingElement.classList.contains('element-wrapper')) {
-                    console.log(`[CREATE_ELEMENT] Element ${data.id} already exists locally, calling updateElementFromData.`);
                     updateElementFromData(data);
                     return;
                 }
@@ -1014,15 +1011,11 @@
             applyElementTransform(wrapperDiv, data.rotation || 0, data.scale || 1);
             wrapperDiv.style.zIndex = data.zIndex;
             
-            // Initial state based on readyForInteraction
             const isReady = (data.readyForInteraction === 'true');
             wrapperDiv.style.opacity = isReady ? data.opacity : '0';
             wrapperDiv.style.pointerEvents = isReady ? 'auto' : 'none'; 
             wrapperDiv.dataset.readyForInteraction = data.readyForInteraction;
-            wrapperDiv.dataset.readyTimestamp = data.readyTimestamp; // Store timestamp from data
-
-            console.log(`[CREATE_ELEMENT] Element ${data.id} initial opacity: ${wrapperDiv.style.opacity}, pointerEvents: ${wrapperDiv.style.pointerEvents}, readyForInteraction: ${wrapperDiv.dataset.readyForInteraction}`);
-
+            wrapperDiv.dataset.readyTimestamp = data.readyTimestamp;
 
             if (data.originalName) {
                 wrapperDiv.dataset.originalName = data.originalName;
@@ -1045,7 +1038,6 @@
                 wrapperDiv.style.height = data.height;
 
                 contentElement.onload = () => {
-                    console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
                 };
                 if (contentElement.complete) {
                     contentElement.onload();
@@ -1078,7 +1070,6 @@
                     contentElement.style.textShadow = 'none';
                 }
             } else {
-                console.warn('Unknown element type in saved data (only image/text expected for visual elements):', data.type);
                 return;
             }
 
@@ -1091,20 +1082,15 @@
                 adjustTextElementWrapperSize(wrapperDiv);
             }
 
-            // Handle visibility transition if not immediately ready
             if (!isReady && data.readyTimestamp) {
                 const delay = data.readyTimestamp - Date.now();
                 if (delay > 0) {
-                    console.log(`[CREATE_ELEMENT] Element ${data.id} will become visible in ${delay}ms.`);
                     setTimeout(() => {
                         wrapperDiv.style.opacity = '1';
                         wrapperDiv.style.pointerEvents = 'auto';
                         wrapperDiv.dataset.readyForInteraction = 'true';
-                        // No need to send update to server, as server already has the true state
                     }, delay);
                 } else {
-                    // If delay is already past or zero, make it visible immediately
-                    console.log(`[CREATE_ELEMENT] Element ${data.id} readyTimestamp already passed or zero, making it visible immediately.`);
                     wrapperDiv.style.opacity = '1';
                     wrapperDiv.style.pointerEvents = 'auto';
                     wrapperDiv.dataset.readyForInteraction = 'true';
@@ -1113,51 +1099,51 @@
         }
 
         function createAudioElementAndAddToPlaylist(data) {
-            console.log(`[AUDIO_CREATE] Attempting to create/update audio element: ${data.id}`);
             let audioElement = allElements.get(data.id);
             if (!audioElement) {
-                console.log(`[AUDIO_CREATE] Audio element ${data.id} not found, creating new.`);
                 audioElement = document.createElement('audio');
                 audioElement.id = data.id;
                 audioElement.src = data.src;
                 audioElement.volume = data.volume || 0.5;
                 audioElement.currentTime = data.currentTime || 0;
                 audioElement.dataset.lastVolume = data.lastVolume || 0.5;
-                audioElement.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
+                audioElement.muted = isMutedGlobally;
                 audioElement.dataset.originalName = data.originalName || `Audio ${data.id.substring(data.id.length - 4)}`;
                 audioElement.dataset.type = 'audio';
-                audioElement.dataset.readyTimestamp = data.readyTimestamp || Date.now(); // Ensure timestamp is set
-                audioElement.dataset.readyForInteraction = data.readyForInteraction; // Store ready state for audio
+                audioElement.dataset.readyTimestamp = data.readyTimestamp || Date.now();
+                audioElement.dataset.readyForInteraction = data.readyForInteraction;
                 if (data.publicId) {
                     audioElement.dataset.publicId = data.publicId;
                 }
-                audioElement.preload = "metadata"; // Changed to "metadata" to reduce initial load
+                audioElement.preload = "metadata";
 
-                // NEW: Logic to immediately mark as ready if timestamp is in the past upon loading
                 const receivedReadyTime = parseFloat(audioElement.dataset.readyTimestamp || 0);
                 if (audioElement.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
-                    console.log(`[AUDIO_CREATE/UPDATE] Audio ${data.id} received with readyForInteraction=false but timestamp is in the past. Forcing local readyForInteraction=true.`);
                     audioElement.dataset.readyForInteraction = 'true';
                 }
 
 
                 audioElement.addEventListener('loadedmetadata', () => {
-                    console.log(`[AUDIO_EVENT] loadedmetadata for ${audioElement.id}. Duration: ${audioElement.duration}`);
                     if (isNaN(audioElement.duration)) {
                         audioElement.duration = data.duration || audioElement.duration;
+                    }
+                    if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
+                        timelineRange.max = audioElement.duration;
+                        currentTimeDisplay.textContent = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
                     }
                 });
 
                 audioElement.addEventListener('timeupdate', () => {
-                    // No throttling needed as we are not updating UI or sending WS messages on every timeupdate.
+                    if (selectedAudioElement && selectedAudioElement.id === audioElement.id && !isDraggingTimeline) {
+                        timelineRange.value = audioElement.currentTime;
+                        currentTimeDisplay.textContent = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
+                    }
                 });
 
                 audioElement.addEventListener('ended', () => {
-                    console.log(`[AUDIO_EVENT] Audio ended for ${audioElement.id}`);
                     if (selectedAudioElement && selectedAudioElement.id === audioElement.id) {
-                        updatePlayPauseButton(true); // Se muestra como pausado
+                        updatePlayPauseButton(true);
                         audioElement.currentTime = 0;
-                        // Explicitly send that it's paused and at start
                         sendWebSocketMessage('elementUpdate', {
                             element: {
                                 ...getElementState(audioElement),
@@ -1169,67 +1155,52 @@
                 });
 
                 allElements.set(audioElement.id, audioElement);
-                // NOT calling addAudioItemToPlaylistUI here for local uploads, it's delayed.
-                // For remote elements, it should be added immediately.
-                if (data.isLocalUpload !== true) { // Only add to playlist immediately if not a local upload
+                if (data.isLocalUpload !== true) {
                     addAudioItemToPlaylistUI(audioElement);
                 }
 
-                console.log(`[AUDIO_CREATE] Audio element ${audioElement.id} added to allElements. Map size: ${allElements.size}`);
             } else {
-                console.log(`[AUDIO_CREATE] Audio element ${data.id} already exists, updating properties.`);
-                const elementToUpdate = allElements.get(data.id); // Get the existing element
+                const elementToUpdate = allElements.get(data.id);
                 elementToUpdate.src = data.src;
                 elementToUpdate.volume = data.volume;
-                elementToUpdate.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
+                elementToUpdate.muted = isMutedGlobally;
                 elementToUpdate.dataset.lastVolume = data.lastVolume;
                 elementToUpdate.dataset.readyTimestamp = data.readyTimestamp || elementToUpdate.dataset.readyTimestamp; 
-                elementToUpdate.dataset.readyForInteraction = data.readyForInteraction; // Update ready state for audio
+                elementToUpdate.dataset.readyForInteraction = data.readyForInteraction;
                 if (data.publicId) {
                     elementToUpdate.dataset.publicId = data.publicId;
                 }
 
-                // NEW: Logic to immediately mark as ready if timestamp is in the past upon updating
                 const receivedReadyTime = parseFloat(elementToUpdate.dataset.readyTimestamp || 0);
                 if (elementToUpdate.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
-                    console.log(`[AUDIO_CREATE/UPDATE] Audio ${data.id} received update with readyForInteraction=false but timestamp is in the past. Forcing local readyForInteraction=true.`);
                     elementToUpdate.dataset.readyForInteraction = 'true';
                 }
 
                 const timeDifference = Math.abs(elementToUpdate.currentTime - data.currentTime);
-                if (elementToUpdate.paused || timeDifference > 0.5) { 
+                if (elementToUpdate.paused || timeDifference > 0.5) {
                     elementToUpdate.currentTime = data.currentTime;
-                    console.log(`[AUDIO_DEBUG] Setting currentTime for ${data.id} to ${data.currentTime} (difference: ${timeDifference.toFixed(2)}s, or was paused).`);
                 }
 
 
-                const isReady = (elementToUpdate.dataset.readyForInteraction === 'true'); // Check readyForInteraction status
+                const isReady = (elementToUpdate.dataset.readyForInteraction === 'true');
                 const shouldBePlayingAccordingToServer = data.isPlaying;
 
-                console.log(`[AUDIO_DEBUG] Element ${elementToUpdate.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${elementToUpdate.paused}, Muted=${elementToUpdate.muted}, ReadyForInteraction (local dataset)=${isReady}, Data ReadyForInteraction (from server): ${data.readyForInteraction}`);
 
-
-                // Solo reproducir/pausar según el estado del servidor, independientemente del muted local
                 if (shouldBePlayingAccordingToServer && isReady) {
                     if (elementToUpdate.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${elementToUpdate.id} due to server update. (Was paused, ready).`);
-                        elementToUpdate.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${elementToUpdate.id} during update:`, e));
+                        elementToUpdate.play().catch(e => console.warn(`Autoplay blocked for ${elementToUpdate.id} during update:`, e));
                     } else {
-                        console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} already playing locally as per server. No action.`);
                     }
                 } else if (!shouldBePlayingAccordingToServer) {
                     if (!elementToUpdate.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${elementToUpdate.id} due to server update. (Was playing locally).`);
                         elementToUpdate.pause();
                     } else {
-                        console.log(`[AUDIO_DEBUG] ${elementToUpdate.id} already paused locally as per server. No action.`);
                     }
                 }
             }
         }
 
         function addAudioItemToPlaylistUI(audioElement) {
-            console.log(`[AUDIO_UI] Adding/Updating UI item for audio: ${audioElement.id}`);
             const noAudioMessage = audioPlaylist.querySelector('p');
             if (noAudioMessage) {
                 noAudioMessage.remove();
@@ -1237,10 +1208,8 @@
 
             let audioItemDiv = audioPlaylist.querySelector(`.audio-list-item[data-id="${audioElement.id}"]`);
             if (audioItemDiv) {
-                console.log(`[AUDIO_UI] UI item for ${audioElement.id} already exists, updating.`);
                 audioItemDiv.querySelector('span').textContent = audioElement.dataset.originalName;
             } else {
-                console.log(`[AUDIO_UI] Creating new UI item for audio: ${audioElement.id}`);
                 audioItemDiv = document.createElement('div');
                 audioItemDiv.classList.add('audio-list-item');
                 audioItemDiv.dataset.id = audioElement.id;
@@ -1272,7 +1241,6 @@
 
                 deleteAudioBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    console.log(`Attempting to delete audio with ID: ${audioElement.id}`);
                     deleteElementFromData(audioElement.id);
                     sendWebSocketMessage('elementDelete', { elementId: audioElement.id });
                 });
@@ -1281,12 +1249,10 @@
 
 
         function updateElementFromData(data) {
-            console.log(`[UPDATE_ELEMENT] Received update for element ID: ${data.id}, type: ${data.type}`);
             const element = allElements.get(data.id);
             let contentElement = null; 
 
             if (!element) {
-                console.warn(`[UPDATE_ELEMENT] Element ${data.id} not found for update, attempting to create.`);
                 if (data.type === 'audio') {
                     createAudioElementAndAddToPlaylist(data);
                 } else {
@@ -1296,54 +1262,43 @@
             }
 
             if (data.type === 'audio') {
-                console.log(`[UPDATE_ELEMENT] Updating properties of AUDIO element: ${data.id}`);
                 element.src = data.src;
                 element.volume = data.volume;
-                element.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
+                element.muted = isMutedGlobally;
                 element.dataset.lastVolume = data.lastVolume;
                 element.dataset.readyTimestamp = data.readyTimestamp || element.dataset.readyTimestamp; 
-                element.dataset.readyForInteraction = data.readyForInteraction; // Update ready state for audio
+                element.dataset.readyForInteraction = data.readyForInteraction;
                 if (data.publicId) {
                     element.dataset.publicId = data.publicId;
                 }
 
-                // NEW: Logic to immediately mark as ready if timestamp is in the past upon updating
                 const receivedReadyTime = parseFloat(element.dataset.readyTimestamp || 0);
                 if (element.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
-                    console.log(`[AUDIO_CREATE/UPDATE] Audio ${data.id} received update with readyForInteraction=false but timestamp is in the past. Forcing local readyForInteraction=true.`);
                     element.dataset.readyForInteraction = 'true';
                 }
 
                 const timeDifference = Math.abs(element.currentTime - data.currentTime);
-                if (element.paused || timeDifference > 0.5) { 
+                if (!isDraggingTimeline && (element.paused || timeDifference > 0.5)) { 
                     element.currentTime = data.currentTime;
-                    console.log(`[AUDIO_DEBUG] Setting currentTime for ${data.id} to ${data.currentTime} (difference: ${timeDifference.toFixed(2)}s, or was paused).`);
                 }
 
 
-                const isReady = (element.dataset.readyForInteraction === 'true'); // Check readyForInteraction status
+                const isReady = (element.dataset.readyForInteraction === 'true');
                 const shouldBePlayingAccordingToServer = data.isPlaying;
 
-                console.log(`[AUDIO_DEBUG] Element ${element.id}: Server says isPlaying=${shouldBePlayingAccordingToServer}, Local says paused=${element.paused}, Muted=${element.muted}, ReadyForInteraction (local dataset)=${isReady}, Data ReadyForInteraction (from server): ${data.readyForInteraction}`);
 
-
-                // Solo reproducir/pausar según el estado del servidor, independientemente del muted local
                 if (shouldBePlayingAccordingToServer && isReady) {
                     if (element.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PLAY ${element.id} due to server update. (Was paused, ready).`);
-                        element.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${element.id} during update:`, e));
+                        element.play().catch(e => console.warn(`Autoplay blocked for ${element.id} during update:`, e));
                     } else {
-                        console.log(`[AUDIO_DEBUG] ${element.id} already playing locally as per server. No action.`);
                     }
                 } else if (!shouldBePlayingAccordingToServer) {
                     if (!element.paused) { 
-                        console.log(`[AUDIO_DEBUG] Attempting to PAUSE ${element.id} due to server update. (Was playing locally).`);
                         element.pause();
                     } else {
-                        console.log(`[AUDIO_DEBUG] ${element.id} already paused locally as per server. No action.`);
                     }
                 }
-            } else { // Visual elements (img, gif, text)
+            } else {
                 element.style.left = data.left;
                 element.style.top = data.top;
                 element.style.width = data.width;
@@ -1351,34 +1306,29 @@
                 applyElementTransform(element, data.rotation || 0, data.scale || 1);
                 element.style.zIndex = data.zIndex;
                 
-                // Update opacity and pointerEvents based on readyForInteraction coming from data
                 const isReady = (data.readyForInteraction === 'true');
                 if (isReady) {
-                    element.style.opacity = data.opacity; // Apply opacity from data directly
+                    element.style.opacity = data.opacity;
                     element.style.pointerEvents = 'auto'; 
                     element.dataset.readyForInteraction = 'true';
                 } else {
                     element.style.opacity = '0';
                     element.style.pointerEvents = 'none';
                     element.dataset.readyForInteraction = 'false';
-                    element.dataset.readyTimestamp = data.readyTimestamp; // Ensure timestamp is updated
+                    element.dataset.readyTimestamp = data.readyTimestamp;
                     const delay = data.readyTimestamp - Date.now();
                     if (delay > 0) {
-                        console.log(`[UPDATE_ELEMENT] Element ${data.id} updated with readyForInteraction: false. Will become visible in ${delay}ms.`);
                         setTimeout(() => {
                             element.style.opacity = '1';
                             element.style.pointerEvents = 'auto';
                             element.dataset.readyForInteraction = 'true';
                         }, delay);
                     } else {
-                        console.log(`[UPDATE_ELEMENT] Element ${data.id} updated with readyForInteraction: false but timestamp already passed. Making visible immediately.`);
                         element.style.opacity = '1';
                         element.style.pointerEvents = 'auto';
                         element.dataset.readyForInteraction = 'true';
                     }
                 }
-
-                console.log(`[DEBUG_UPDATE_VISIBILITY] Element ${data.id} applied opacity: ${element.style.opacity}, pointerEvents: ${element.style.pointerEvents}, readyForInteraction: ${element.dataset.readyForInteraction}`);
                 
                 contentElement = element.querySelector('.element-content');
                 if (contentElement) {
@@ -1409,16 +1359,19 @@
             }
 
             if (selectedAudioElement && selectedAudioElement.id === data.id) {
-                console.log(`[UPDATE_ELEMENT] Updating UI for selected audio ${data.id}`);
                 volumeRange.value = element.volume;
                 volumeValueDisplay.textContent = `${Math.round(element.volume * 100)}%`;
-                updatePlayPauseButton(element.paused); // El botón refleja el estado real de pausa
+                updatePlayPauseButton(element.paused);
                 currentAudioNameDisplay.textContent = element.dataset.originalName || 'Audio Seleccionado';
                 checkAudioReadyState(selectedAudioElement);
+                if (!isDraggingTimeline) {
+                    timelineRange.value = element.currentTime;
+                    timelineRange.max = element.duration;
+                    currentTimeDisplay.textContent = `${formatTime(element.currentTime)} / ${formatTime(element.duration)}`;
+                }
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
                 if (contentElement) { 
-                    console.log(`[UPDATE_ELEMENT] Updating UI for selected visual element ${data.id}`);
-                    opacityRange.value = parseFloat(element.style.opacity) || 1; // Read from wrapper's opacity
+                    opacityRange.value = parseFloat(element.style.opacity) || 1;
                     opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                     rotationRange.value = data.rotation;
                     rotationValue.textContent = `${Math.round(data.rotation)}°`;
@@ -1430,51 +1383,40 @@
         }
 
         function deleteElementFromData(elementId) {
-            console.log(`[DELETE] Initiating deletion for ID: ${elementId}`);
             const element = allElements.get(elementId);
             if (element) {
                 if (element.tagName === 'AUDIO') {
-                    console.log(`[DELETE] Element found as AUDIO. ID: ${elementId}`);
                     element.pause();
                     element.src = '';
                     element.load();
                     const listItem = audioPlaylist.querySelector(`.audio-list-item[data-id="${elementId}"]`);
                     if (listItem) {
-                        console.log(`[DELETE] Removing audio list item from UI for ID: ${elementId}`);
                         listItem.remove();
                     } else {
-                        console.warn(`[DELETE] Audio list item not found in UI for ID: ${elementId}`);
                     }
                     if (selectedAudioElement && selectedAudioElement.id === elementId) {
-                        console.log(`[DELETE] Deselecting active audio. ID: ${elementId}`);
                         selectedAudioElement = null;
                         deselectAudioControls();
                     }
                     allElements.delete(elementId);
-                    console.log(`[DELETE] Element ID ${elementId} removed from allElements map. Current size: ${allElements.size}`);
                     updateAudioPlaylistDisplay();
                     updateFileCountDisplay();
                 } else if (element.classList && element.classList.contains('element-wrapper')) {
-                    console.log(`[DELETE] Element found as VISUAL (wrapper). ID: ${elementId}`);
                     const contentElement = element.querySelector('.element-content');
                     if (contentElement && contentElement.tagName === 'AUDIO') {
-                        console.warn('Audio found inside a visual wrapper. This case should be rare now.');
                         contentElement.pause();
                         contentElement.src = '';
                         contentElement.load();
                     }
                     element.remove();
                     if (selectedElementWrapper && selectedElementWrapper.id === elementId) {
-                        console.log(`[DELETE] Deselecting active visual element. ID: ${elementId}`);
                         deselectAllElements();
                     }
                     allElements.delete(elementId);
-                    console.log(`[DELETE] Element ID ${elementId} removed from allElements map. Current size: ${allElements.size}`);
                     updateLayersList();
                     updateFileCountDisplay();
                 }
             } else {
-                console.warn(`[DELETE] Element with ID: ${elementId} not found in allElements.`);
             }
         }
 
@@ -1491,25 +1433,18 @@
         function applyGlobalMuteState() {
             allElements.forEach(element => {
                 if (element.tagName === 'AUDIO') {
-                    // El estado `muted` del elemento de audio se controla localmente
                     element.muted = isMutedGlobally; 
-                    console.log(`[GLOBAL_MUTE_APPLY] Audio ${element.id} set to muted: ${element.muted} (local preference).`);
 
-                    // Si el audio debe estar reproduciéndose (según el estado del servidor)
-                    // entonces debemos intentar reproducirlo para OBS, independientemente de `muted`.
-                    const serverState = getElementState(element); // Obtener el estado actual del elemento
-                    // Ensure the element is marked as readyForInteraction='true' locally
+                    const serverState = getElementState(element);
                     const isReady = (element.dataset.readyForInteraction === 'true');
 
                     if (serverState && serverState.isPlaying && element.paused && isReady) {
-                        console.log(`[GLOBAL_MUTE_APPLY] Audio ${element.id} attempting to play (server says playing, locally paused, and ready).`);
-                        element.play().catch(e => console.warn(`[AUDIO_WARNING] Autoplay blocked for ${element.id} during global state apply:`, e));
+                        element.play().catch(e => console.warn(`Autoplay blocked for ${element.id} during global state apply:`, e));
                     }
                 }
             });
-            // Actualiza el botón de play/pause y el slider de volumen si hay un audio seleccionado.
             if (selectedAudioElement) {
-                updatePlayPauseButton(selectedAudioElement.paused); // El botón refleja el estado real de pausa
+                updatePlayPauseButton(selectedAudioElement.paused);
                 volumeRange.value = selectedAudioElement.volume;
                 volumeValueDisplay.textContent = `${Math.round(selectedAudioElement.volume * 100)}%`;
             }
@@ -1517,7 +1452,6 @@
         }
 
         function deselectAllElements() {
-            console.log("[DESELECT] Deselecting all elements (visual and audio controls).");
             document.querySelectorAll('.element-wrapper').forEach(el => {
                 el.classList.remove('selected');
                 el.querySelectorAll('.resize-handle').forEach(handle => handle.style.display = 'none');
@@ -1543,8 +1477,7 @@
             resetSizeBtn.disabled = true;
             bringToFrontBtn.disabled = true;
 
-            // Keep textInput enabled, only clear its content and reset styles
-            textInput.value = ''; // Clear text input
+            textInput.value = '';
             textColorInput.value = '#FFFFFF';
             textBgColorInput.value = '#000000';
             toggleTextBg.checked = false;
@@ -1557,7 +1490,6 @@
             boldTextBtn.classList.remove('active-style');
             italicTextBtn.classList.remove('active-style');
             
-            // Text controls remain enabled so user can type before adding
             textColorInput.disabled = false;
             boldTextBtn.disabled = false;
             italicTextBtn.disabled = false;
@@ -1565,7 +1497,6 @@
             toggleTextOutline.disabled = false;
             fontSizeRange.disabled = false;
 
-            // Update disabled states for text background/outline
             textBgColorInput.disabled = !toggleTextBg.checked;
             textBgColorLabel.classList.toggle('text-gray-600', !toggleTextBg.checked);
             textBgColorLabel.classList.toggle('text-gray-300', toggleTextBg.checked);
@@ -1581,16 +1512,17 @@
         }
 
         function deselectAudioControls() {
-            console.log("[DESELECT] Deselecting audio controls.");
             selectedAudioElement = null;
             playPauseBtn.disabled = true;
             volumeRange.disabled = true;
+            timelineRange.disabled = true;
+            timelineRange.value = 0;
+            currentTimeDisplay.textContent = '0:00 / 0:00';
             currentAudioNameDisplay.textContent = '';
             volumeRange.value = 0.5;
             volumeValueDisplay.textContent = '50%';
             updatePlayPauseButton(true);
 
-            // Clear and hide audio countdown
             if (audioCountdownInterval) {
                 clearInterval(audioCountdownInterval);
                 audioCountdownInterval = null;
@@ -1599,28 +1531,18 @@
             audioCountdown.textContent = '';
         }
 
-        // Function to check and update play button state and countdown for selected audio
         function checkAudioReadyState(audioElement) {
-            if (!audioElement) return; // Add a null check for safety
+            if (!audioElement) return;
 
             const readyTime = parseFloat(audioElement.dataset.readyTimestamp || 0);
             const currentTime = Date.now();
             const rawTimeDiff = readyTime - currentTime;
-            // The audio countdown is primarily for visual elements now.
-            // For audio elements, we expect them to be ready immediately.
             const timeRemaining = Math.max(0, Math.ceil(rawTimeDiff / 1000));
 
-            console.log(`[CHECK_AUDIO_READY] Audio: ${audioElement.id}`);
-            console.log(`[CHECK_AUDIO_READY] current readyForInteraction: ${audioElement.dataset.readyForInteraction}`);
-            console.log(`[CHECK_AUDIO_READY] Stored readyTimestamp: ${readyTime} (${new Date(readyTime).toLocaleString()})`);
-            console.log(`[CHECK_AUDIO_READY] Current Date.now(): ${currentTime} (${new Date(currentTime).toLocaleString()})`);
-            console.log(`[CHECK_AUDIO_READY] Raw time difference (ms): ${rawTimeDiff}`);
-            console.log(`[CHECK_AUDIO_READY] Calculated timeRemaining: ${timeRemaining}`);
 
-
-            // Check based on the readyForInteraction dataset property directly
             if (audioElement.dataset.readyForInteraction === 'true') {
                 playPauseBtn.disabled = false;
+                timelineRange.disabled = false;
                 if (audioCountdownInterval) {
                     clearInterval(audioCountdownInterval);
                     audioCountdownInterval = null;
@@ -1630,21 +1552,19 @@
                 return;
             }
 
-            // If not readyForInteraction === 'true' and there's still a future delay, show countdown and disable button
-            if (rawTimeDiff > 0) { // Only show countdown if time is actually remaining
+            if (rawTimeDiff > 0) {
                 playPauseBtn.disabled = true;
+                timelineRange.disabled = true;
                 audioCountdown.style.display = 'block';
                 audioCountdown.textContent = `Reproducción en ${timeRemaining} segundos...`;
 
-                if (audioCountdownInterval) { // Clear existing interval before setting new one
+                if (audioCountdownInterval) {
                     clearInterval(audioCountdownInterval);
                 }
                 audioCountdownInterval = setInterval(() => {
                     const newRawTimeDiff = readyTime - Date.now();
                     const newTimeRemaining = Math.max(0, Math.ceil(newRawTimeDiff / 1000));
                     
-                    console.log(`[COUNTDOWN_INTERVAL] Audio: ${audioElement.id}, New Time Remaining: ${newTimeRemaining}s`);
-
                     if (newTimeRemaining > 0) {
                         audioCountdown.textContent = `Reproducción en ${newTimeRemaining} segundos...`;
                     } else {
@@ -1653,55 +1573,47 @@
                         audioCountdown.style.display = 'none';
                         audioCountdown.textContent = '';
                         playPauseBtn.disabled = false; 
+                        timelineRange.disabled = false;
                         
-                        // This part is the fallback to ensure readiness if somehow not set by server
                         if (audioElement.dataset.readyForInteraction !== 'true') {
                             audioElement.dataset.readyForInteraction = 'true';
-                            // Send an update to the server to ensure consistency for other clients
                             const updatedState = getElementState(audioElement);
                             updatedState.readyForInteraction = 'true';
                             sendWebSocketMessage('elementUpdate', { element: updatedState });
-                            console.log(`[COUNTDOWN_INTERVAL] Audio ${audioElement.id} countdown finished, forced ready, sending update.`);
                         }
                     }
                 }, 1000);
-            } else { // If not readyForInteraction === 'true' but no time remaining, immediately enable and mark as ready
+            } else {
                 audioCountdown.style.display = 'none';
                 audioCountdown.textContent = '';
                 playPauseBtn.disabled = false; 
+                timelineRange.disabled = false;
                 if (audioElement.dataset.readyForInteraction !== 'true') {
                     audioElement.dataset.readyForInteraction = 'true';
                     const updatedState = getElementState(audioElement);
                     updatedState.readyForInteraction = 'true';
                     sendWebSocketMessage('elementUpdate', { element: updatedState });
-                    console.log(`[CHECK_AUDIO_READY] Audio ${audioElement.id} was not ready, but its timestamp is past. Forcing ready and sending update.`);
                 }
             }
         }
 
 
         function selectElement(element) {
-            console.log(`[SELECT] Attempting to select element ID: ${element.id}, type: ${element.tagName}`);
             deselectAllElements();
 
             if (element.classList && element.classList.contains('element-wrapper')) {
-                // Check if element is ready for interaction based on its dataset.
                 const isReady = element.dataset.readyForInteraction === 'true';
 
                 if (!isReady) {
-                    console.log(`[SELECT] Element ${element.id} is not yet ready for interaction.`);
-                    // Do not select if not ready, or show a message.
                     showConfirmationModal('El elemento aún no está listo para interactuar. Espera un momento.', null);
                     return; 
                 }
 
-                console.log(`[SELECT] Selecting VISUAL element: ${element.id}`);
                 selectedElementWrapper = element;
                 selectedElementWrapper.classList.add('selected');
 
                 const contentElement = selectedElementWrapper.querySelector('img.element-content, div.text-content.element-content');
                 if (!contentElement) {
-                    console.error("Could not find content element for selected wrapper:", selectedElementWrapper.id);
                     return;
                 }
 
@@ -1723,7 +1635,7 @@
                 resetRotationBtn.disabled = false;
                 bringToFrontBtn.disabled = false;
 
-                opacityRange.value = parseFloat(selectedElementWrapper.style.opacity) || 1; // Read from wrapper's opacity
+                opacityRange.value = parseFloat(selectedElementWrapper.style.opacity) || 1;
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                 
                 const elementState = getElementState(selectedElementWrapper);
@@ -1825,7 +1737,6 @@
         }
 
         function selectAudioElement(audioElement) {
-            console.log(`[SELECT] Selecting AUDIO element: ${audioElement.id}`);
             deselectAllElements(); 
 
             selectedAudioElement = audioElement;
@@ -1835,7 +1746,6 @@
                 listItem.classList.add('selected');
             }
 
-            // Disable visual element controls
             opacityRange.disabled = true;
             rotationRange.disabled = true;
             sizeRange.disabled = true; 
@@ -1845,7 +1755,6 @@
             resetRotationBtn.disabled = true;
             resetSizeBtn.disabled = true; 
 
-            // Disable text-specific controls (textInput remains enabled)
             textColorInput.disabled = true;
             boldTextBtn.disabled = true;
             italicTextBtn.disabled = true;
@@ -1863,16 +1772,21 @@
             outlineThicknessLabel.classList.remove('text-gray-300');
 
 
-            // Enable audio controls
             volumeRange.disabled = false;
+            timelineRange.disabled = false;
+            deleteElementBtn.disabled = false;
 
-            // Establece el estado muted del audio según la preferencia global
+
             audioElement.muted = isMutedGlobally; 
             volumeRange.value = audioElement.volume;
             volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
-            updatePlayPauseButton(audioElement.paused); // El botón refleja el estado real de pausa
+            updatePlayPauseButton(audioElement.paused);
             currentAudioNameDisplay.textContent = audioElement.dataset.originalName || 'Audio Seleccionado';
             
+            timelineRange.max = audioElement.duration || 0;
+            timelineRange.value = audioElement.currentTime || 0;
+            currentTimeDisplay.textContent = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
+
             checkAudioReadyState(audioElement);
         }
 
@@ -1893,7 +1807,6 @@
         }
 
         function updateLayersList() {
-            console.log("[LAYERS] Updating layers list.");
             layersList.innerHTML = '';
 
             const visualElements = Array.from(allElements.values()).filter(el => el.classList && el.classList.contains('element-wrapper'));
@@ -1923,10 +1836,9 @@
                 }
                 layerItem.textContent = name;
 
-                // Set opacity and pointer events for layer item based on element's readyForInteraction
                 const isReady = elementWrapper.dataset.readyForInteraction === 'true';
-                layerItem.style.opacity = isReady ? '1' : '0.5'; // Visually indicate not ready
-                layerItem.style.pointerEvents = isReady ? 'auto' : 'none'; // Make it non-clickable if not ready
+                layerItem.style.opacity = isReady ? '1' : '0.5';
+                layerItem.style.pointerEvents = isReady ? 'auto' : 'none';
 
                 if (selectedElementWrapper && selectedElementWrapper.id === elementWrapper.id) {
                     layerItem.classList.add('selected');
@@ -1948,15 +1860,11 @@
         }
 
         function updateAudioPlaylistDisplay() {
-            console.log("[AUDIO_PLAYLIST] Updating audio playlist display.");
             audioPlaylist.innerHTML = '';
 
-            // Filter for audio elements that are actually meant to be displayed in the playlist
-            // Only display elements that are "readyForInteraction" (meaning they've passed their initial load delay)
             const audioElements = Array.from(allElements.values()).filter(el => 
                 el.tagName === 'AUDIO' && el.dataset.readyForInteraction === 'true'
             );
-            console.log(`[AUDIO_PLAYLIST] Found ${audioElements.length} audio elements ready for display.`);
 
             if (audioElements.length === 0) {
                 audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
@@ -1970,7 +1878,6 @@
 
 
         function updateFileCountDisplay() {
-            console.log("[FILE_COUNT] Updating file count display.");
             fileCountDisplay.textContent = `${allElements.size}/${fileLimit}`;
             if (allElements.size >= fileLimit) {
                 imageUpload.disabled = true;
@@ -1992,24 +1899,20 @@
         }
 
         function handleFile(file) {
-            console.log(`[FILE_HANDLER] Processing file: ${file.name}, type: ${file.type}`);
             if (allElements.size >= fileLimit) {
-                console.warn(`File upload limit reached (${fileLimit} files).`);
                 return;
             }
 
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    if (file.type.startsWith('audio/mpeg')) { 
-                        console.log(`[FILE_HANDLER] File is audio: ${file.name}`);
+                    if (file.type.startsWith('audio/')) {
                         const tempAudio = document.createElement('audio');
                         tempAudio.src = e.target.result;
                         
                         let audioReadyPromise = new Promise((resolve, reject) => {
                             tempAudio.addEventListener('loadedmetadata', () => {
-                                console.log(`[FILE_HANDLER] Audio metadata loaded for ${file.name}. Duration: ${tempAudio.duration}`);
-                                const maxAudioDurationSeconds = 480; // 8 minutes
+                                const maxAudioDurationSeconds = 480;
                                 if (tempAudio.duration > maxAudioDurationSeconds) {
                                     showConfirmationModal(`Este MP3 dura más de 8 minutos (${formatTime(tempAudio.duration)}). Por favor, sube un archivo más corto.`, null);
                                     reject(new Error('Audio too long'));
@@ -2018,19 +1921,16 @@
                                 resolve(tempAudio.duration);
                             }, { once: true });
                             tempAudio.addEventListener('error', (err) => {
-                                console.error('Error loading audio metadata:', err);
                                 reject(new Error('Error loading audio metadata'));
                             }, { once: true });
                         });
 
                         audioReadyPromise.then(duration => {
-                            createLocalElementAndSend(file, e.target.result, duration, true); // Pass true for isLocalUpload
+                            createLocalElementAndSend(file, e.target.result, duration, true);
                         }).catch(error => {
-                            console.error('Failed to process audio file:', error);
                         });
                         
                     } else {
-                        console.log(`[FILE_HANDLER] File is image/gif: ${file.name}`);
                         createLocalElementAndSend(file, e.target.result);
                     }
                 };
@@ -2038,13 +1938,12 @@
             }
         }
 
-        function createLocalElementAndSend(file, srcData, audioDuration = null, isLocalUpload = false) { // Added isLocalUpload parameter
+        function createLocalElementAndSend(file, srcData, audioDuration = null, isLocalUpload = false) {
             const newId = generateUniqueId();
             let elementState = {
                 id: newId,
                 originalName: file.name
             };
-            console.log(`[LOCAL_CREATE_AND_SEND] Initiating local creation and send for ID: ${newId}, Name: ${file.name}`);
 
             if (file.type.startsWith('image/') || file.type.startsWith('image/gif')) {
                 const wrapperDiv = document.createElement('div');
@@ -2054,13 +1953,11 @@
                 wrapperDiv.style.minHeight = '30px';
                 wrapperDiv.style.zIndex = getNextHighestZIndex();
                 applyElementTransform(wrapperDiv, 0, 1);
-                wrapperDiv.style.opacity = '0'; // Start invisible
-                wrapperDiv.style.pointerEvents = 'none'; // Not interactive yet
-                wrapperDiv.dataset.readyForInteraction = 'false'; // Mark as not ready
+                wrapperDiv.style.opacity = '0';
+                wrapperDiv.style.pointerEvents = 'none';
+                wrapperDiv.dataset.readyForInteraction = 'false';
                 const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
                 wrapperDiv.dataset.readyTimestamp = readyTime; 
-
-                console.log(`[DEBUG_LOCAL_CREATE] Visual element ${newId} created locally. Initial opacity: ${wrapperDiv.style.opacity}, pointerEvents: ${wrapperDiv.style.pointerEvents}, dataset.readyForInteraction: ${wrapperDiv.dataset.readyForInteraction}, readyTimestamp: ${wrapperDiv.dataset.readyTimestamp}`);
 
 
                 const contentElement = document.createElement('img');
@@ -2071,7 +1968,6 @@
                 wrapperDiv.appendChild(contentElement);
                 
                 contentElement.onload = () => {
-                    console.log(`[IMAGE_LOADED] Image for ID ${wrapperDiv.id} loaded.`);
                     const defaultInitialSize = 200;
                     let finalWidth = contentElement.naturalWidth;
                     let finalHeight = contentElement.naturalHeight;
@@ -2116,50 +2012,46 @@
                         rotation: 0,
                         scale: 1,
                         zIndex: wrapperDiv.style.zIndex,
-                        opacity: '1', // Sent as 1 to server, client-side opacity is managed by readyForInteraction
+                        opacity: '1',
                         type: file.type.startsWith('image/gif') ? 'gif' : 'img', 
                         src: srcData,
                         initialAspectRatio: aspectRatio,
-                        readyForInteraction: 'false', // Explicitly false for sending
-                        readyTimestamp: readyTime // Send the timestamp
+                        readyForInteraction: 'false',
+                        readyTimestamp: readyTime
                     };
-                    console.log(`[LOCAL_CREATE_AND_SEND] Sending visual element to server with readyForInteraction: ${elementState.readyForInteraction}, readyTimestamp: ${elementState.readyTimestamp}`);
                     sendWebSocketMessage('elementAdd', { element: elementState });
 
-                    // Set local timer for visibility
                     setTimeout(() => {
-                        console.log(`[LOCAL_VISIBILITY] Making element ${newId} visible and interactive.`);
                         wrapperDiv.style.opacity = '1';
                         wrapperDiv.style.pointerEvents = 'auto';
                         wrapperDiv.dataset.readyForInteraction = 'true';
-                        updateLayersList(); // Update layer list to reflect ready state (e.g. opacity)
+                        updateLayersList();
                     }, ELEMENT_VISIBILITY_DELAY_MS);
                 };
                 if (contentElement.complete) {
                     contentElement.onload();
                 }
 
-            } else if (file.type.startsWith('audio/mpeg')) { 
+            } else if (file.type.startsWith('audio/')) {
                 const audioElement = document.createElement('audio');
                 audioElement.id = newId;
                 audioElement.src = srcData;
                 audioElement.volume = 0.5;
                 audioElement.currentTime = 0;
                 audioElement.dataset.lastVolume = 0.5;
-                audioElement.muted = isMutedGlobally; // El estado `muted` siempre refleja la preferencia local
+                audioElement.muted = isMutedGlobally;
                 audioElement.dataset.originalName = file.name;
                 audioElement.dataset.type = 'audio';
-                audioElement.dataset.readyTimestamp = Date.now(); // NO DELAY FOR AUDIO
-                audioElement.dataset.readyForInteraction = 'true'; // Audio is ready immediately
+                audioElement.dataset.readyTimestamp = Date.now();
+                audioElement.dataset.readyForInteraction = 'true';
                 if (audioDuration !== null) {
                     audioElement.duration = audioDuration; 
                 }
 
                 allElements.set(audioElement.id, audioElement); 
-                updateFileCountDisplay(); // Update count immediately when added to map
-                addAudioItemToPlaylistUI(audioElement); // Add to UI immediately
+                updateFileCountDisplay();
+                addAudioItemToPlaylistUI(audioElement);
 
-                // Send initial state to server immediately (now it's ready)
                 const initialElementState = {
                     ...elementState,
                     type: 'audio', src: srcData, volume: audioElement.volume, currentTime: audioElement.currentTime,
@@ -2167,15 +2059,11 @@
                     readyTimestamp: parseFloat(audioElement.dataset.readyTimestamp), 
                     left: '0px', top: '0px', width: '0px', height: '0px',
                     rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', 
-                    readyForInteraction: 'true', // Explicitly true for sending initially
+                    readyForInteraction: 'true',
                     isLocalUpload: true 
                 };
-                console.log(`[LOCAL_CREATE_AND_SEND] Sending initial audio element state to server (ready immediately):`, initialElementState);
                 sendWebSocketMessage('elementAdd', { element: initialElementState });
 
-
-                // No need for canplaythrough preparation if it's already considered ready for interaction
-                // The `play()` and `pause()` calls are now part of regular interaction.
             }
         }
 
@@ -2188,9 +2076,7 @@
         });
 
         addTextBtn.addEventListener('click', () => {
-            console.log("[ADD_TEXT] Add text button clicked.");
             if (allElements.size >= fileLimit) {
-                console.warn(`File upload limit reached (${fileLimit} files).`);
                 return;
             }
 
@@ -2212,16 +2098,14 @@
             wrapperDiv.style.minHeight = '30px';
             wrapperDiv.style.zIndex = getNextHighestZIndex();
             applyElementTransform(wrapperDiv, 0, 1);
-            wrapperDiv.style.opacity = '0'; // Start invisible
+            wrapperDiv.style.opacity = '0';
             wrapperDiv.style.width = 'auto';
             wrapperDiv.style.height = 'auto';
             wrapperDiv.dataset.originalName = 'Text Element';
-            wrapperDiv.dataset.readyForInteraction = 'false'; // Mark as not ready
-            wrapperDiv.style.pointerEvents = 'none'; // Not interactive yet
+            wrapperDiv.dataset.readyForInteraction = 'false';
+            wrapperDiv.style.pointerEvents = 'none';
             const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
             wrapperDiv.dataset.readyTimestamp = readyTime;
-
-            console.log(`[DEBUG_LOCAL_CREATE] Text element ${newId} created locally. Initial opacity: ${wrapperDiv.style.opacity}, pointerEvents: ${wrapperDiv.style.pointerEvents}, dataset.readyForInteraction: ${wrapperDiv.dataset.readyForInteraction}, readyTimestamp: ${wrapperDiv.dataset.readyTimestamp}`);
 
 
             const textDiv = document.createElement('div');
@@ -2264,8 +2148,6 @@
             mainCanvasWrapper.appendChild(wrapperDiv); 
             allElements.set(wrapperDiv.id, wrapperDiv);
             adjustTextElementWrapperSize(wrapperDiv);
-            // Don't focus immediately, as it's hidden
-            // textDiv.focus(); 
 
             updateLayersList();
             updateFileCountDisplay();
@@ -2279,7 +2161,7 @@
                 rotation: 0,
                 scale: 1,
                 zIndex: wrapperDiv.style.zIndex,
-                opacity: '1', // Sent as 1 to server, client-side opacity is managed by readyForInteraction
+                opacity: '1',
                 originalName: wrapperDiv.dataset.originalName,
                 type: 'text',
                 textContent: textDiv.textContent,
@@ -2292,15 +2174,12 @@
                 outlineColor: textDiv.style.webkitTextStrokeColor,
                 hasTextBackground: (textDiv.style.backgroundColor !== 'transparent'),
                 hasTextOutline: (parseFloat(textDiv.style.webkitTextStrokeWidth) > 0),
-                readyForInteraction: 'false', // Explicitly false for sending
-                readyTimestamp: readyTime // Send the timestamp
+                readyForInteraction: 'false',
+                readyTimestamp: readyTime
             };
-            console.log(`[LOCAL_CREATE_AND_SEND] Sending text element to server with readyForInteraction: ${elementState.readyForInteraction}, readyTimestamp: ${elementState.readyTimestamp}`);
             sendWebSocketMessage('elementAdd', { element: elementState });
 
-            // Set local timer for visibility
             setTimeout(() => {
-                console.log(`[LOCAL_VISIBILITY] Making element ${newId} visible and interactive.`);
                 wrapperDiv.style.opacity = '1';
                 wrapperDiv.style.pointerEvents = 'auto';
                 wrapperDiv.dataset.readyForInteraction = 'true';
@@ -2310,10 +2189,9 @@
         });
 
         textInput.addEventListener('input', () => {
-            if (selectedElementWrapper) { 
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const isReady = selectedElementWrapper.dataset.readyForInteraction === 'true';
                 if (!isReady) {
-                    console.log(`[INPUT_UPDATE] Element ${selectedElementWrapper.id} is not ready, input ignored.`);
                     return;
                 }
 
@@ -2335,17 +2213,15 @@
 
         function getElementState(element) {
             if (!element) {
-                console.warn("[GET_STATE] Element is null, cannot get state.");
                 return null;
             }
 
             if (element.tagName === 'AUDIO') {
-                console.log(`[GET_STATE] Getting state for AUDIO element: ${element.id}`);
                 return {
                     id: element.id,
                     type: 'audio',
                     src: element.src,
-                    volume: element.volume, // Enviamos el volumen al servidor (afecta a todos)
+                    volume: element.volume,
                     currentTime: element.currentTime, 
                     paused: element.paused,
                     isPlaying: !element.paused, 
@@ -2353,19 +2229,16 @@
                     lastVolume: element.dataset.lastVolume,
                     originalName: element.dataset.originalName,
                     publicId: element.dataset.publicId,
-                    // NO ENVIAMOS `muted` al servidor. Es una preferencia LOCAL del cliente.
                     readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now()), 
-                    left: '0px', top: '0px', width: '0px', height: '0px', // Los elementos de audio no tienen posición visual
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1, // Propiedades visuales predeterminadas para audio no visual
-                    visibility: 'hidden', // El audio no es visible en el lienzo
-                    readyForInteraction: element.dataset.readyForInteraction || 'true', // Refleja el estado de preparación actual
-                    isLocalUpload: element.dataset.isLocalUpload === 'true' ? true : false // Include local upload status
+                    left: '0px', top: '0px', width: '0px', height: '0px',
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1,
+                    visibility: 'hidden',
+                    readyForInteraction: element.dataset.readyForInteraction || 'true',
+                    isLocalUpload: element.dataset.isLocalUpload === 'true' ? true : false
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
-                console.log(`[GET_STATE] Getting state for VISUAL element: ${element.id}`);
                 const contentElement = element.querySelector('img.element-content, div.text-content.element-content');
                 if (!contentElement) {
-                    console.error(`Content element not found inside wrapper ${element.id} for getElementState.`);
                     return null;
                 }
 
@@ -2376,10 +2249,10 @@
                     width: element.style.width,
                     height: element.style.height,
                     zIndex: element.style.zIndex,
-                    opacity: element.style.opacity, // Read opacity from wrapperDiv
+                    opacity: element.style.opacity,
                     originalName: element.dataset.originalName || '',
-                    readyForInteraction: element.dataset.readyForInteraction || 'true', // Always include readyForInteraction
-                    readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now()) // Include readyTimestamp
+                    readyForInteraction: element.dataset.readyForInteraction || 'true',
+                    readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now())
                 };
 
                 const transform = element.style.transform;
@@ -2419,13 +2292,11 @@
                 }
                 return state;
             }
-            console.warn(`[GET_STATE] Unknown element type for getElementState: ${element.tagName || element}`);
             return null;
         }
 
         opacityRange.addEventListener('input', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
-                // Opacity is now on wrapperDiv
                 selectedElementWrapper.style.opacity = opacityRange.value;
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                 if (!dragSendTimeout) {
@@ -2468,14 +2339,11 @@
         });
 
         duplicateElementBtn.addEventListener('click', () => {
-            console.log("[DUPLICATE] Duplicate button clicked.");
             if (allElements.size >= fileLimit) {
-                console.warn(`File upload limit reached (${fileLimit} files).`);
                 return;
             }
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 if (selectedElementWrapper.tagName === 'AUDIO') {
-                    console.warn('Audio elements cannot be duplicated from the canvas.');
                     return;
                 }
 
@@ -2510,12 +2378,10 @@
                     clonedWrapper.dataset.publicId = originalState.publicId;
                 }
 
-                // New cloned element starts invisible and not interactive
-                clonedWrapper.dataset.readyForInteraction = 'false'; // Set to false locally
-                clonedWrapper.style.opacity = '0'; // Start invisible
-                clonedWrapper.style.pointerEvents = 'none'; // Not interactive yet
+                clonedWrapper.dataset.readyForInteraction = 'false';
+                clonedWrapper.style.opacity = '0';
+                clonedWrapper.style.pointerEvents = 'none';
                 clonedWrapper.dataset.readyTimestamp = readyTime;
-                console.log(`[DEBUG_LOCAL_CREATE] Cloned visual element ${newId} created locally. Initial opacity: ${clonedWrapper.style.opacity}, pointerEvents: ${clonedWrapper.style.pointerEvents}, dataset.readyForInteraction: ${clonedWrapper.dataset.readyForInteraction}, readyTimestamp: ${clonedWrapper.dataset.readyTimestamp}`);
 
 
                 mainCanvasWrapper.appendChild(clonedWrapper); 
@@ -2525,16 +2391,13 @@
                 updateFileCountDisplay();
                 
                 const clonedState = getElementState(clonedWrapper);
-                clonedState.readyForInteraction = 'false'; // Ensure it's sent as not ready
-                clonedState.readyTimestamp = readyTime; // Send the timestamp
-                clonedState.opacity = '1'; // Server doesn't care about client-side initial opacity
+                clonedState.readyForInteraction = 'false';
+                clonedState.readyTimestamp = readyTime;
+                clonedState.opacity = '1';
 
-                console.log(`[DUPLICATE] Sending cloned element to server with readyForInteraction: ${clonedState.readyForInteraction}, readyTimestamp: ${clonedState.readyTimestamp}`);
                 sendWebSocketMessage('elementAdd', { element: clonedState });
 
-                // Set local timer for visibility
                 setTimeout(() => {
-                    console.log(`[LOCAL_VISIBILITY] Making cloned element ${newId} visible and interactive.`);
                     clonedWrapper.style.opacity = '1';
                     clonedWrapper.style.pointerEvents = 'auto';
                     clonedWrapper.dataset.readyForInteraction = 'true';
@@ -2544,13 +2407,11 @@
         });
 
         deleteElementBtn.addEventListener('click', () => {
-            console.log("[DELETE_ELEMENT] Delete element (visual) button clicked.");
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const deletedId = selectedElementWrapper.id;
                 deleteElementFromData(deletedId);
                 sendWebSocketMessage('elementDelete', { elementId: deletedId });
             } else {
-                console.warn('The "Delete element" button only affects ready visual canvas elements. For audios, use the specific button.');
             }
         });
 
@@ -2736,7 +2597,6 @@
 
         resetOpacityBtn.addEventListener('click', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
-                // Opacity is now on wrapperDiv
                 selectedElementWrapper.style.opacity = '1';
                 opacityRange.value = 1;
                 opacityValue.textContent = '100%';
@@ -2766,7 +2626,6 @@
 
 
         playPauseBtn.addEventListener('click', () => {
-            console.log("[PLAY_PAUSE] Play/Pause button clicked.");
             if (selectedAudioElement) {
                 const isReady = (selectedAudioElement.dataset.readyForInteraction === 'true');
                 const readyTime = parseFloat(selectedAudioElement.dataset.readyTimestamp || 0);
@@ -2774,37 +2633,22 @@
                 const rawTimeDiff = readyTime - currentTime; 
                 const timeRemainingSeconds = Math.max(0, Math.ceil(rawTimeDiff / 1000));
 
-                console.log(`[PLAY_PAUSE_DEBUG] Clicked audio: ${selectedAudioElement.id}`);
-                console.log(`[PLAY_PAUSE_DEBUG] Current readyForInteraction: ${isReady}`);
-                console.log(`[PLAY_PAUSE_DEBUG] Stored readyTimestamp: ${readyTime} (${new Date(readyTime).toLocaleString()})`);
-                console.log(`[PLAY_PAUSE_DEBUG] Current Date.now(): ${currentTime} (${new Date(currentTime).toLocaleString()})`);
-                console.log(`[PLAY_PAUSE_DEBUG] Raw time difference (ms): ${rawTimeDiff}`);
-                console.log(`[PLAY_PAUSE_DEBUG] Calculated timeRemainingSeconds (Math.max(0, ...)): ${timeRemainingSeconds}`);
 
-
-                // If not ready and readyTime is in the future, show countdown.
-                if (!isReady && rawTimeDiff > 0) { // Using rawTimeDiff > 0 directly for future
+                if (!isReady && rawTimeDiff > 0) {
                     showConfirmationModal(`Este audio estará disponible para reproducir en ${timeRemainingSeconds} segundos.`, null);
                     return;
                 } 
-                // If not ready but readyTime is in the past or now, force it to be ready and proceed.
-                else if (!isReady && rawTimeDiff <= 0) { // Using rawTimeDiff <= 0 directly for past/present
-                    console.warn(`[PLAY_PAUSE] Audio ${selectedAudioElement.id} was not marked ready, but its readyTimestamp is in the past. Forcing local readyForInteraction=true.`);
+                else if (!isReady && rawTimeDiff <= 0) {
                     selectedAudioElement.dataset.readyForInteraction = 'true';
-                    // Send an update to the server to ensure consistency for other clients
                     const updatedState = getElementState(selectedAudioElement);
                     updatedState.readyForInteraction = 'true';
                     sendWebSocketMessage('elementUpdate', { element: updatedState });
-                    // No return here, proceed to play/pause logic
                 }
-                // If isReady is true, or if we just forced it to true, proceed with play/pause.
 
-                // At this point, the audio should be considered ready.
                 const wasPaused = selectedAudioElement.paused;
-                const targetIsPlaying = wasPaused; // Si estaba pausado, el objetivo es reproducir; si reproduciendo, el objetivo es pausar.
+                const targetIsPlaying = wasPaused;
 
                 if (targetIsPlaying) {
-                    // Pausar otros audios reproduciéndose, independientemente de su estado muted.
                     allElements.forEach(element => {
                         if (element.tagName === 'AUDIO' && element !== selectedAudioElement && !element.paused) {
                             element.pause();
@@ -2818,25 +2662,21 @@
                         }
                     });
 
-                    // Siempre intentar reproducir el audio seleccionado. Su estado 'muted' es local y no afecta a OBS.
                     selectedAudioElement.play().catch(e => {
-                        console.error('Error playing audio (possible browser autoplay restriction):', e);
-                        updatePlayPauseButton(true); // Revertir botón si la reproducción falla
+                        updatePlayPauseButton(true);
                         return; 
                     });
                 } else {
-                    // Si el objetivo es pausar, pausar localmente.
                     selectedAudioElement.pause();
                 }
 
-                updatePlayPauseButton(!targetIsPlaying); // Actualiza el botón para reflejar el nuevo estado local.
+                updatePlayPauseButton(!targetIsPlaying);
                 
                 const stateToSend = getElementState(selectedAudioElement);
-                stateToSend.isPlaying = targetIsPlaying; // El servidor debe saber si se está reproduciendo
-                stateToSend.paused = !targetIsPlaying; // El servidor debe saber si está pausado
+                stateToSend.isPlaying = targetIsPlaying;
+                stateToSend.paused = !targetIsPlaying;
                 stateToSend.currentTime = selectedAudioElement.currentTime; 
 
-                console.log('[PLAY_PAUSE_DEBUG] Sending audio update:', stateToSend); 
                 sendWebSocketMessage('elementUpdate', { element: stateToSend });
             }
         });
@@ -2847,7 +2687,6 @@
                 selectedAudioElement.volume = newVolume;
                 selectedAudioElement.dataset.lastVolume = newVolume;
                 
-                // Si el volumen es 0, silenciar localmente. Si no, aplicar la preferencia global.
                 if (newVolume === 0) {
                     selectedAudioElement.muted = true;
                 } else {
@@ -2857,6 +2696,26 @@
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
             }
         });
+
+        let isDraggingTimeline = false;
+        timelineRange.addEventListener('mousedown', () => {
+            isDraggingTimeline = true;
+        });
+
+        timelineRange.addEventListener('mouseup', () => {
+            isDraggingTimeline = false;
+            if (selectedAudioElement) {
+                selectedAudioElement.currentTime = parseFloat(timelineRange.value);
+                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
+            }
+        });
+
+        timelineRange.addEventListener('input', () => {
+            if (selectedAudioElement) {
+                currentTimeDisplay.textContent = `${formatTime(parseFloat(timelineRange.value))} / ${formatTime(selectedAudioElement.duration)}`;
+            }
+        });
+
 
         bringToFrontBtn.addEventListener('click', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
@@ -2882,7 +2741,6 @@
 
             if (clickedWrapper) {
                 if (clickedWrapper.dataset.readyForInteraction !== 'true') {
-                    console.log(`[DRAG_START] Element ${clickedWrapper.id} is not ready for interaction. Ignoring.`);
                     showConfirmationModal('El elemento aún no está listo para interactuar. Espera un momento.', null);
                     return; 
                 }
@@ -2919,8 +2777,8 @@
                 selectElement(clickedWrapper);
                 initialMouseX = mouseXOnUnscaledWrapper;
                 initialMouseY = mouseYOnUnscaledWrapper;
-                initialLeft = selectedElementWrapper.offsetLeft;
-                initialTop = selectedElementWrapper.offsetTop;
+                initialLeft = clickedWrapper.offsetLeft;
+                initialTop = clickedWrapper.offsetTop;
             } else if (clickedAudioListItem) {
                  e.stopPropagation();
             }
@@ -3136,9 +2994,13 @@
             const touchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
             if (e.touches.length === 1) {
+                if (target === timelineRange) {
+                    isDraggingTimeline = true;
+                    return;
+                }
+
                 if (clickedWrapper) {
                     if (clickedWrapper.dataset.readyForInteraction !== 'true') {
-                        console.log(`[TOUCH_START] Element ${clickedWrapper.id} is not ready for interaction. Ignoring.`);
                         showConfirmationModal('El elemento aún no está listo para interactuar. Espera un momento.', null);
                         return;
                     }
@@ -3363,7 +3225,7 @@
         });
 
         document.addEventListener('touchend', () => {
-            if (isDragging || isResizing || isRotating) {
+            if (isDragging || isResizing || isRotating || isDraggingTimeline) {
                 if (pendingDOMUpdateAnimationFrame) {
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
@@ -3375,46 +3237,44 @@
                 if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                 }
+                if (isDraggingTimeline && selectedAudioElement) {
+                    selectedAudioElement.currentTime = parseFloat(timelineRange.value);
+                    sendWebSocketMessage('elementUpdate', { element: getElementState(selectedAudioElement) });
+                }
             }
             isDragging = false;
             isResizing = false;
             isRotating = false;
+            isDraggingTimeline = false;
             activeHandle = '';
         });
 
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', () => {
                 const tabId = button.dataset.tab;
-                console.log(`[TAB_CHANGE] Switching to tab: ${tabId}`);
                 document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
                 button.classList.add('active');
                 document.getElementById(`tab-content-${tabId}`).classList.add('active');
 
                 if (selectedAudioElement) {
-                    console.log("[TAB_CHANGE] Deselecting audio element when switching away from audio tab.");
                     deselectAudioControls();
                 }
 
                 if (tabId === 'audio') {
                     if (selectedElementWrapper) {
-                        console.log("[TAB_CHANGE] Deselecting visual element when switching to audio tab.");
                         deselectAllElements(); 
                     }
-                    // When switching to audio tab, ensure playlist is re-rendered to reflect "ready" status
                     updateAudioPlaylistDisplay(); 
                 } else {
                     if (tabId === 'properties' || tabId === 'text') {
                     }
 
                     if (tabId === 'properties' && selectedElementWrapper) {
-                        // Re-select element only if it's ready for interaction
                         if (selectedElementWrapper.dataset.readyForInteraction === 'true') {
-                            console.log("[TAB_CHANGE] Re-selecting previously selected visual element.");
                             selectElement(selectedElementWrapper);
                         } else {
-                            console.log("[TAB_CHANGE] Previously selected element is not ready, not re-selecting.");
-                            deselectAllElements(); // Ensure all controls are disabled
+                            deselectAllElements();
                         }
                     }
                 }
@@ -3425,7 +3285,6 @@
         layersList.addEventListener('dragstart', (e) => {
             const target = e.target.closest('.layer-item');
             if (target) {
-                // Only allow dragging if the element is ready for interaction
                 const elementOnCanvas = allElements.get(target.dataset.id);
                 if (elementOnCanvas && elementOnCanvas.dataset.readyForInteraction === 'true') {
                     draggedLayer = target;
@@ -3434,8 +3293,7 @@
                         target.style.opacity = '0.5';
                     }, 0);
                 } else {
-                    e.preventDefault(); // Prevent dragging if not ready
-                    console.log(`[DRAG_LAYERS] Element ${target.dataset.id} is not ready for interaction. Preventing drag.`);
+                    e.preventDefault();
                 }
             }
         });
@@ -3469,7 +3327,6 @@
                 layersInNewOrder.forEach((layerItem, index) => {
                     if (layerItem.dataset.id) {
                         const elementWrapper = allElements.get(layerItem.dataset.id);
-                        // Elements are always ready, so no check needed here.
                         if (elementWrapper) {
                             const newZIndex = maxZ - index;
                             elementWrapper.style.zIndex = newZIndex;
@@ -3521,17 +3378,10 @@
         `;
         document.body.appendChild(confirmationModal);
 
-        // Se elimina el listener anterior para evitar duplicados.
-        // Solo se añade un listener cuando se muestra el modal.
-        // document.getElementById('confirmOkBtn').addEventListener('click', () => {
-        //     confirmationModal.classList.remove('active');
-        // });
-
         function showConfirmationModal(message, callback) { 
             document.getElementById('confirmationMessage').textContent = message;
             confirmationModal.classList.add('active');
 
-            // Clonar el botón OK para eliminar listeners anteriores y añadir uno nuevo
             const oldConfirmOkBtn = document.getElementById('confirmOkBtn');
             const newConfirmOkBtn = oldConfirmOkBtn.cloneNode(true);
             oldConfirmOkBtn.parentNode.replaceChild(newConfirmOkBtn, oldConfirmOkBtn); 
@@ -3544,14 +3394,150 @@
             });
         }
 
+        // Define original default color for the transparent left sidebar background (green)
+        const DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES = [16, 185, 129]; 
+
+        // Global variables for initial HSL values
+        let initialSidebarBgHsl; // For the main 'aside' element
+        let initialLeftSidebarBgHsl; // For the transparent left canvas sidebar
+        let initialLeftSidebarBorderHsl; // For the border of the left canvas sidebar
+
+        // Helper functions for HSL conversion
+        function hexToRgb(hex) {
+            let r = 0, g = 0, b = 0;
+            if (hex.length === 4) {
+                r = parseInt(hex[1] + hex[1], 16);
+                g = parseInt(hex[2] + hex[2], 16);
+                b = parseInt(hex[3] + hex[3], 16);
+            } else if (hex.length === 7) {
+                r = parseInt(hex.substring(1, 3), 16);
+                g = parseInt(hex.substring(3, 5), 16);
+                b = parseInt(hex.substring(5, 7), 16);
+            }
+            return { r, g, b };
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0; // achromatic
+            } else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return [h * 360, s * 100, l * 100]; // Return HSL in degrees, percentage, percentage
+        }
+
+        function hslToRgb(h, s, l) {
+            h /= 360;
+            s /= 100;
+            l /= 100;
+            let r, g, b;
+
+            if (s === 0) {
+                r = g = b = l; // achromatic
+            } else {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1 / 6) return p + (q - p) * 6 * t;
+                    if (t < 1 / 2) return q;
+                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                    return p;
+                };
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1 / 3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1 / 3);
+            }
+            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+        }
+
+        function adjustBrightnessHex(hex, percent) {
+            const rgb = hexToRgb(hex);
+            let { r, g, b } = rgb;
+            r = Math.min(255, Math.max(0, r + Math.floor(r * percent)));
+            g = Math.min(255, Math.max(0, g + Math.floor(g * percent)));
+            b = Math.min(255, Math.max(0, b + Math.floor(b * percent)));
+            return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+        }
+
+        function applyTheme(color) {
+            const root = document.documentElement;
+            const newThemeRgb = hexToRgb(color);
+            const newThemeHsl = rgbToHsl(newThemeRgb.r, newThemeRgb.g, newThemeRgb.b);
+            const newHue = newThemeHsl[0]; // Get the hue from the selected color
+
+            root.style.setProperty('--theme-main-accent', color);
+            root.style.setProperty('--theme-main-accent-dark', adjustBrightnessHex(color, -0.15));
+            root.style.setProperty('--theme-main-accent-light', adjustBrightnessHex(color, 0.15));
+            root.style.setProperty('--theme-main-accent-lighter', adjustBrightnessHex(color, 0.30));
+            
+            // Apply new hue to main sidebar, preserving its original saturation and lightness
+            if (initialSidebarBgHsl) {
+                const newSidebarBgRgb = hslToRgb(newHue, initialSidebarBgHsl[1], initialSidebarBgHsl[2]);
+                root.style.setProperty('--theme-sidebar-main-bg', `rgb(${newSidebarBgRgb[0]}, ${newSidebarBgRgb[1]}, ${newSidebarBgRgb[2]})`);
+            }
+
+            // Apply new hue to left sidebar (transparent canvas overlay), preserving its original saturation and lightness
+            if (initialLeftSidebarBgHsl) {
+                const newLeftSidebarBgRgb = hslToRgb(newHue, initialLeftSidebarBgHsl[1], initialLeftSidebarBgHsl[2]);
+                root.style.setProperty('--theme-left-sidebar-bg-rgb', `${newLeftSidebarBgRgb[0]}, ${newLeftSidebarBgRgb[1]}, ${newLeftSidebarBgRgb[2]}`);
+            }
+
+            // Apply new hue to left sidebar border, preserving its original saturation and lightness
+            if (initialLeftSidebarBorderHsl) {
+                const newLeftSidebarBorderRgb = hslToRgb(newHue, initialLeftSidebarBorderHsl[1], initialLeftSidebarBorderHsl[2]);
+                root.style.setProperty('--theme-left-sidebar-border', rgbToHex(newLeftSidebarBorderRgb[0], newLeftSidebarBorderRgb[1], newLeftSidebarBorderRgb[2]));
+            }
+        }
+
+        themeColorPicker.addEventListener('input', (e) => {
+            applyTheme(e.target.value);
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Apply initial theme based on default value to ensure computed styles are set
+            applyTheme(themeColorPicker.value);
+
+            // Capture initial HSL values from computed styles AFTER default theme is applied
+            // For main sidebar (aside) background
+            const computedSidebarBg = window.getComputedStyle(sidebar).backgroundColor;
+            const sidebarRgbMatch = computedSidebarBg.match(/\d+/g).map(Number);
+            initialSidebarBgHsl = rgbToHsl(sidebarRgbMatch[0], sidebarRgbMatch[1], sidebarRgbMatch[2]);
+
+            // For left canvas sidebar (transparent green overlay) - use the hardcoded default RGB
+            initialLeftSidebarBgHsl = rgbToHsl(DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES[0], DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES[1], DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES[2]);
+
+            // For left sidebar border color
+            const computedLeftSidebarBorder = window.getComputedStyle(leftSidebar).borderColor;
+            const borderRgbMatch = computedLeftSidebarBorder.match(/\d+/g).map(Number);
+            initialLeftSidebarBorderHsl = rgbToHsl(borderRgbMatch[0], borderRgbMatch[1], borderRgbMatch[2]);
+            
+            // Re-apply theme to ensure all elements use the newly captured initial HSL values
+            // This is important for the main sidebar to correctly update its background based on its *actual* initial color.
+            applyTheme(themeColorPicker.value);
+
             connectWebSocket();
-            loadElementsState(); // Carga la preferencia de muting
+            loadElementsState();
             mainCanvasWrapper.style.transformOrigin = 'center center';
             deselectAllElements(); 
             updateLayersList();
-            updateAudioPlaylistDisplay(); // This will only show elements marked as ready
+            updateAudioPlaylistDisplay();
             updateFileCountDisplay();
             applyZoom();
             showMutePreferenceModal();
@@ -3562,13 +3548,13 @@
 
             modalMuteBtn.onclick = () => {
                 isMutedGlobally = true;
-                applyGlobalMuteState(); // Aplica el estado muted a los audios
+                applyGlobalMuteState();
                 mutePreferenceModal.classList.remove('active');
             };
 
             modalSoundBtn.onclick = () => {
                 isMutedGlobally = false;
-                applyGlobalMuteState(); // Aplica el estado unmuted a los audios
+                applyGlobalMuteState();
                 mutePreferenceModal.classList.remove('active');
             };
         }
