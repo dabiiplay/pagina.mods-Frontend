@@ -8,13 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
-            --theme-main-accent: #8B5CF6; /* Default purple */
-            --theme-main-accent-dark: #7C3AED; /* Darker purple for hover/active */
-            --theme-main-accent-light: #A78BFA; /* Lighter purple for some elements */
-            --theme-main-accent-lighter: #C4B5FD; /* Even lighter for text/focus */
-            --theme-sidebar-main-bg: #1a202c; /* Default body/sidebar dark background */
-            --theme-left-sidebar-bg-rgb: 16, 185, 129; /* Default green RGB for transparency */
-            --theme-left-sidebar-border: #4ade80; /* Default green border */
+            --theme-main-accent: #8B5CF6;
+            --theme-main-accent-dark: #7C3AED;
+            --theme-main-accent-light: #A78BFA;
+            --theme-main-accent-lighter: #C4B5FD;
+            --theme-sidebar-main-bg: #1a202c;
+            --theme-left-sidebar-bg-rgb: 16, 185, 129;
+            --theme-left-sidebar-border: #4ade80;
         }
 
         body {
@@ -152,6 +152,13 @@
         }
         .audio-list-item button svg {
             pointer-events: none;
+        }
+        .audio-name-editable {
+            border: 1px solid var(--theme-main-accent);
+            padding: 2px 4px;
+            border-radius: 4px;
+            outline: none;
+            background-color: #3a475a;
         }
         button.active-style {
             background-color: var(--theme-main-accent);
@@ -408,28 +415,27 @@
         .modal-button.ok:hover {
             background-color: var(--theme-main-accent-dark);
         }
-        /* Custom styling for the theme color picker */
         #themeColorPicker {
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
-            width: 64px; /* w-16 */
-            height: 64px; /* h-16 */
+            width: 64px;
+            height: 64px;
             border: none;
             border-radius: 50%;
             padding: 0;
             cursor: pointer;
-            background-color: transparent; /* Ensures the chosen color is visible */
+            background-color: transparent;
         }
         #themeColorPicker::-webkit-color-swatch-wrapper {
             padding: 0;
         }
         #themeColorPicker::-webkit-color-swatch {
-            border: 2px solid #fff; /* White border for visibility */
+            border: 2px solid #fff;
             border-radius: 50%;
         }
         #themeColorPicker::-moz-color-swatch {
-            border: 2px solid #fff; /* White border for visibility */
+            border: 2px solid #fff;
             border-radius: 50%;
         }
         .tab-content {
@@ -461,7 +467,7 @@
                 <span id="selectFileButtonText">Seleccionar archivo</span>
                 <input type="file" id="imageUpload" accept="image/*, audio/*" class="block w-full text-sm text-gray-400">
             </div>
-            <span id="fileCountDisplay" class="block text-xs text-gray-400 mt-2 text-center">0/50</span>
+            <span id="fileCountDisplay" class="block text-xs text-gray-400 mt-2 text-center">0/150</span>
             <div id="dropArea">Arrastra y suelta archivos aquí</div>
             <div id="wsStatus" class="disconnected">Desconectado</div>
         </div>
@@ -679,7 +685,7 @@
         const volumeValueDisplay = document.getElementById('volumeValue');
         const currentAudioNameDisplay = document.getElementById('currentAudioName');
         const audioPlaylist = document.getElementById('audioPlaylist');
-        const fileLimit = 50;
+        const fileLimit = 150;
         const fileCountDisplay = document.getElementById('fileCountDisplay');
         const selectFileButtonText = document.getElementById('selectFileButtonText');
         const textBgColorLabel = document.getElementById('textBgColorLabel');
@@ -1116,12 +1122,6 @@
                 }
                 audioElement.preload = "metadata";
 
-                const receivedReadyTime = parseFloat(audioElement.dataset.readyTimestamp || 0);
-                if (audioElement.dataset.readyForInteraction === 'false' && receivedReadyTime <= Date.now()) {
-                    audioElement.dataset.readyForInteraction = 'true';
-                }
-
-
                 audioElement.addEventListener('loadedmetadata', () => {
                     if (isNaN(audioElement.duration)) {
                         audioElement.duration = data.duration || audioElement.duration;
@@ -1216,10 +1216,56 @@
                 const audioNameSpan = document.createElement('span');
                 audioNameSpan.textContent = audioElement.dataset.originalName;
                 audioNameSpan.classList.add('flex-1', 'truncate');
+                audioNameSpan.setAttribute('title', audioElement.dataset.originalName);
                 audioItemDiv.appendChild(audioNameSpan);
 
                 const controlsDiv = document.createElement('div');
                 controlsDiv.classList.add('flex', 'space-x-2');
+
+                const renameAudioBtn = document.createElement('button');
+                renameAudioBtn.classList.add('text-white', 'p-1', 'rounded-full', 'bg-blue-600', 'hover:bg-blue-700', 'transition-colors');
+                renameAudioBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                        <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 0 0-1.383 2.26l-.397 1.639a.75.75 0 0 0 .95.95l1.639-.397a5.25 5.25 0 0 0 2.26-1.383l8.4-8.4Z" />
+                        <path d="M5.25 6.75A.75.75 0 0 1 6 6h10.5a.75.75 0 0 1 0 1.5H6a.75.75 0 0 1-.75-.75Z" />
+                    </svg>
+                `;
+                renameAudioBtn.title = `Cambiar nombre a ${audioElement.dataset.originalName}`;
+                renameAudioBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    audioNameSpan.contentEditable = true;
+                    audioNameSpan.classList.add('audio-name-editable');
+                    audioNameSpan.focus();
+                    const range = document.createRange();
+                    range.selectNodeContents(audioNameSpan);
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                };
+                controlsDiv.appendChild(renameAudioBtn);
+
+                audioNameSpan.addEventListener('blur', () => {
+                    if (audioNameSpan.contentEditable === 'true') {
+                        let newName = audioNameSpan.textContent.trim();
+                        if (newName === '') {
+                            newName = audioElement.dataset.originalName;
+                            audioNameSpan.textContent = newName;
+                        }
+                        audioElement.dataset.originalName = newName;
+                        audioNameSpan.setAttribute('title', newName);
+                        sendWebSocketMessage('elementUpdate', { element: getElementState(audioElement) });
+                        audioNameSpan.contentEditable = false;
+                        audioNameSpan.classList.remove('audio-name-editable');
+                    }
+                });
+
+                audioNameSpan.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        audioNameSpan.blur();
+                    }
+                });
+
 
                 const deleteAudioBtn = document.createElement('button');
                 deleteAudioBtn.classList.add('text-white', 'p-1', 'rounded-full', 'bg-red-600', 'hover:bg-red-700', 'transition-colors');
@@ -1228,6 +1274,12 @@
                         <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
                     </svg>
                 `;
+                deleteAudioBtn.title = `Eliminar ${audioElement.dataset.originalName}`;
+                deleteAudioBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteElementFromData(audioElement.id);
+                    sendWebSocketMessage('elementDelete', { elementId: audioElement.id });
+                };
                 controlsDiv.appendChild(deleteAudioBtn);
 
                 audioItemDiv.appendChild(controlsDiv);
@@ -1236,12 +1288,6 @@
                 audioItemDiv.addEventListener('click', (e) => {
                     e.stopPropagation();
                     selectAudioElement(audioElement);
-                });
-
-                deleteAudioBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deleteElementFromData(audioElement.id);
-                    sendWebSocketMessage('elementDelete', { elementId: audioElement.id });
                 });
             }
         }
@@ -1265,6 +1311,7 @@
                 element.volume = data.volume;
                 element.muted = isMutedGlobally;
                 element.dataset.lastVolume = data.lastVolume;
+                element.dataset.originalName = data.originalName;
                 element.dataset.readyTimestamp = data.readyTimestamp || element.dataset.readyTimestamp; 
                 element.dataset.readyForInteraction = data.readyForInteraction;
                 if (data.publicId) {
@@ -1967,70 +2014,70 @@
                 wrapperDiv.appendChild(contentElement);
                 
                 contentElement.onload = () => {
-                    const defaultInitialSize = 200;
-                    let finalWidth = contentElement.naturalWidth;
-                    let finalHeight = contentElement.naturalHeight;
-                    const aspectRatio = finalWidth / finalHeight;
-
-                    if (finalWidth > defaultInitialSize || finalHeight > defaultInitialSize) {
-                        if (finalWidth / defaultInitialSize > finalHeight / defaultInitialSize) {
-                            finalWidth = defaultInitialSize;
-                            finalHeight = finalWidth / aspectRatio;
-                        } else {
-                            finalHeight = defaultInitialSize;
-                            finalWidth = finalHeight * aspectRatio;
-                        }
-                    }
-
-                    const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
-                    const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
-                    const initialLeft = greenCanvasCenterX - (finalWidth / 2);
-                    const initialTop = greenCanvasCenterY - (finalHeight / 2);
-
-                    wrapperDiv.style.left = `${initialLeft}px`;
-                    wrapperDiv.style.top = `${initialTop}px`;
-                    wrapperDiv.style.width = `${finalWidth}px`;
-                    wrapperDiv.style.height = `${finalHeight}px`;
-                    
-                    addHandles(wrapperDiv);
-                    
-                    mainCanvasWrapper.appendChild(wrapperDiv); 
-                    allElements.set(wrapperDiv.id, wrapperDiv);
-
-                    wrapperDiv.dataset.initialAspectRatio = aspectRatio;
-
-                    updateLayersList();
-                    updateFileCountDisplay();
-                    
-                    elementState = {
-                        ...elementState,
-                        left: wrapperDiv.style.left,
-                        top: wrapperDiv.style.top,
-                        width: wrapperDiv.style.width,
-                        height: wrapperDiv.style.height,
-                        rotation: 0,
-                        scale: 1,
-                        zIndex: wrapperDiv.style.zIndex,
-                        opacity: '1',
-                        type: file.type.startsWith('image/gif') ? 'gif' : 'img', 
-                        src: srcData,
-                        initialAspectRatio: aspectRatio,
-                        readyForInteraction: 'false',
-                        readyTimestamp: readyTime
-                    };
-                    sendWebSocketMessage('elementAdd', { element: elementState });
-
-                    setTimeout(() => {
-                        wrapperDiv.style.opacity = '1';
-                        wrapperDiv.style.pointerEvents = 'auto';
-                        wrapperDiv.dataset.readyForInteraction = 'true';
-                        updateLayersList();
-                    }, ELEMENT_VISIBILITY_DELAY_MS);
                 };
                 if (contentElement.complete) {
                     contentElement.onload();
                 }
 
+                const defaultInitialSize = 200;
+                let finalWidth = contentElement.naturalWidth;
+                let finalHeight = contentElement.naturalHeight;
+                const aspectRatio = finalWidth / finalHeight;
+
+                if (finalWidth > defaultInitialSize || finalHeight > defaultInitialSize) {
+                    if (finalWidth / defaultInitialSize > finalHeight / defaultInitialSize) {
+                        finalWidth = defaultInitialSize;
+                        finalHeight = finalWidth / aspectRatio;
+                    } else {
+                        finalHeight = defaultInitialSize;
+                        finalWidth = finalHeight * aspectRatio;
+                    }
+                }
+
+                const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
+                const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
+                const initialLeft = greenCanvasCenterX - (finalWidth / 2);
+                const initialTop = greenCanvasCenterY - (finalHeight / 2);
+
+                wrapperDiv.style.left = `${initialLeft}px`;
+                wrapperDiv.style.top = `${initialTop}px`;
+                wrapperDiv.style.width = `${finalWidth}px`;
+                wrapperDiv.style.height = `${finalHeight}px`;
+                
+                addHandles(wrapperDiv);
+                
+                mainCanvasWrapper.appendChild(wrapperDiv); 
+                allElements.set(wrapperDiv.id, wrapperDiv);
+
+                wrapperDiv.dataset.initialAspectRatio = aspectRatio;
+
+                updateLayersList();
+                updateFileCountDisplay();
+                
+                elementState = {
+                    ...elementState,
+                    left: wrapperDiv.style.left,
+                    top: wrapperDiv.style.top,
+                    width: wrapperDiv.style.width,
+                    height: wrapperDiv.style.height,
+                    rotation: 0,
+                    scale: 1,
+                    zIndex: wrapperDiv.style.zIndex,
+                    opacity: '1',
+                    type: file.type.startsWith('image/gif') ? 'gif' : 'img', 
+                    src: srcData,
+                    initialAspectRatio: aspectRatio,
+                    readyForInteraction: 'false',
+                    readyTimestamp: readyTime
+                };
+                sendWebSocketMessage('elementAdd', { element: elementState });
+
+                setTimeout(() => {
+                    wrapperDiv.style.opacity = '1';
+                    wrapperDiv.style.pointerEvents = 'auto';
+                    wrapperDiv.dataset.readyForInteraction = 'true';
+                    updateLayersList();
+                }, ELEMENT_VISIBILITY_DELAY_MS);
             } else if (file.type.startsWith('audio/')) {
                 const audioElement = document.createElement('audio');
                 audioElement.id = newId;
@@ -2230,8 +2277,7 @@
                     publicId: element.dataset.publicId,
                     readyTimestamp: parseFloat(element.dataset.readyTimestamp || Date.now()), 
                     left: '0px', top: '0px', width: '0px', height: '0px',
-                    rotation: 0, scale: 1, zIndex: 0, opacity: 1,
-                    visibility: 'hidden',
+                    rotation: 0, scale: 1, zIndex: 0, opacity: 1, visibility: 'hidden', 
                     readyForInteraction: element.dataset.readyForInteraction || 'true',
                     isLocalUpload: element.dataset.isLocalUpload === 'true' ? true : false
                 };
@@ -2494,6 +2540,21 @@
                  textBgColorInput.disabled = !toggleTextBg.checked;
                  textBgColorLabel.classList.toggle('text-gray-600', !toggleTextBg.checked);
                  textBgColorLabel.classList.toggle('text-gray-300', toggleTextBg.checked);
+            }
+        });
+
+        textBgColorInput.addEventListener('input', () => {
+            if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
+                const contentElement = selectedElementWrapper.querySelector('.element-content');
+                if (contentElement && contentElement.classList.contains('text-content') && toggleTextBg.checked) {
+                    contentElement.style.backgroundColor = textBgColorInput.value;
+                    if (!dragSendTimeout) {
+                        dragSendTimeout = setTimeout(() => {
+                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            dragSendTimeout = null;
+                        }, DRAG_SEND_THROTTLE_MS);
+                    }
+                }
             }
         });
 
@@ -3052,6 +3113,16 @@
             const currentTouchYOnUnscaledWrapper = (e.touches[0].clientY - wrapperRect.top) / currentZoom;
 
             if (e.touches.length === 1) {
+                if (isDraggingTimeline && selectedAudioElement) {
+                    e.preventDefault(); 
+                    const newTime = (currentTouchXOnUnscaledWrapper - timelineRange.getBoundingClientRect().left) / timelineRange.offsetWidth * selectedAudioElement.duration;
+                    if (!isNaN(newTime)) {
+                        timelineRange.value = newTime;
+                        currentTimeDisplay.textContent = `${formatTime(newTime)} / ${formatTime(selectedAudioElement.duration)}`;
+                    }
+                    return;
+                }
+
                 if ((isDragging || isResizing || isRotating) && selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     e.preventDefault();
 
@@ -3217,7 +3288,7 @@
                                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
                             }
                             dragSendTimeout = null;
-                        }, DRAG_SEND_THROTTLE_MS);
+                        }, DRAG_SEND_THROTTLE_THROTTLE_MS);
                     }
                 }
             }
@@ -3393,15 +3464,12 @@
             });
         }
 
-        // Define original default color for the transparent left sidebar background (green)
         const DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES = [16, 185, 129]; 
 
-        // Global variables for initial HSL values
-        let initialSidebarBgHsl; // For the main 'aside' element
-        let initialLeftSidebarBgHsl; // For the transparent left canvas sidebar
-        let initialLeftSidebarBorderHsl; // For the border of the left canvas sidebar
+        let initialSidebarBgHsl;
+        let initialLeftSidebarBgHsl;
+        let initialLeftSidebarBorderHsl;
 
-        // Helper functions for HSL conversion
         function hexToRgb(hex) {
             let r = 0, g = 0, b = 0;
             if (hex.length === 4) {
@@ -3422,7 +3490,7 @@
             let h, s, l = (max + min) / 2;
 
             if (max === min) {
-                h = s = 0; // achromatic
+                h = s = 0;
             } else {
                 let d = max - min;
                 s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -3433,7 +3501,7 @@
                 }
                 h /= 6;
             }
-            return [h * 360, s * 100, l * 100]; // Return HSL in degrees, percentage, percentage
+            return [h * 360, s * 100, l * 100];
         }
 
         function hslToRgb(h, s, l) {
@@ -3443,7 +3511,7 @@
             let r, g, b;
 
             if (s === 0) {
-                r = g = b = l; // achromatic
+                r = g = b = l;
             } else {
                 const hue2rgb = (p, q, t) => {
                     if (t < 0) t += 1;
@@ -3479,26 +3547,23 @@
             const root = document.documentElement;
             const newThemeRgb = hexToRgb(color);
             const newThemeHsl = rgbToHsl(newThemeRgb.r, newThemeRgb.g, newThemeRgb.b);
-            const newHue = newThemeHsl[0]; // Get the hue from the selected color
+            const newHue = newThemeHsl[0];
 
             root.style.setProperty('--theme-main-accent', color);
             root.style.setProperty('--theme-main-accent-dark', adjustBrightnessHex(color, -0.15));
             root.style.setProperty('--theme-main-accent-light', adjustBrightnessHex(color, 0.15));
             root.style.setProperty('--theme-main-accent-lighter', adjustBrightnessHex(color, 0.30));
             
-            // Apply new hue to main sidebar, preserving its original saturation and lightness
             if (initialSidebarBgHsl) {
                 const newSidebarBgRgb = hslToRgb(newHue, initialSidebarBgHsl[1], initialSidebarBgHsl[2]);
                 root.style.setProperty('--theme-sidebar-main-bg', `rgb(${newSidebarBgRgb[0]}, ${newSidebarBgRgb[1]}, ${newSidebarBgRgb[2]})`);
             }
 
-            // Apply new hue to left sidebar (transparent canvas overlay), preserving its original saturation and lightness
             if (initialLeftSidebarBgHsl) {
                 const newLeftSidebarBgRgb = hslToRgb(newHue, initialLeftSidebarBgHsl[1], initialLeftSidebarBgHsl[2]);
                 root.style.setProperty('--theme-left-sidebar-bg-rgb', `${newLeftSidebarBgRgb[0]}, ${newLeftSidebarBgRgb[1]}, ${newLeftSidebarBgRgb[2]}`);
             }
 
-            // Apply new hue to left sidebar border, preserving its original saturation and lightness
             if (initialLeftSidebarBorderHsl) {
                 const newLeftSidebarBorderRgb = hslToRgb(newHue, initialLeftSidebarBorderHsl[1], initialLeftSidebarBorderHsl[2]);
                 root.style.setProperty('--theme-left-sidebar-border', rgbToHex(newLeftSidebarBorderRgb[0], newLeftSidebarBorderRgb[1], newLeftSidebarBorderRgb[2]));
@@ -3510,25 +3575,18 @@
         });
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Apply initial theme based on default value to ensure computed styles are set
             applyTheme(themeColorPicker.value);
 
-            // Capture initial HSL values from computed styles AFTER default theme is applied
-            // For main sidebar (aside) background
             const computedSidebarBg = window.getComputedStyle(sidebar).backgroundColor;
             const sidebarRgbMatch = computedSidebarBg.match(/\d+/g).map(Number);
             initialSidebarBgHsl = rgbToHsl(sidebarRgbMatch[0], sidebarRgbMatch[1], sidebarRgbMatch[2]);
 
-            // For left canvas sidebar (transparent green overlay) - use the hardcoded default RGB
             initialLeftSidebarBgHsl = rgbToHsl(DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES[0], DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES[1], DEFAULT_LEFT_SIDEBAR_BG_RGB_VALUES[2]);
 
-            // For left sidebar border color
             const computedLeftSidebarBorder = window.getComputedStyle(leftSidebar).borderColor;
             const borderRgbMatch = computedLeftSidebarBorder.match(/\d+/g).map(Number);
             initialLeftSidebarBorderHsl = rgbToHsl(borderRgbMatch[0], borderRgbMatch[1], borderRgbMatch[2]);
             
-            // Re-apply theme to ensure all elements use the newly captured initial HSL values
-            // This is important for the main sidebar to correctly update its background based on its *actual* initial color.
             applyTheme(themeColorPicker.value);
 
             connectWebSocket();
