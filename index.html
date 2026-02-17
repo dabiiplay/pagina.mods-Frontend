@@ -46,8 +46,8 @@
             object-fit: contain;
             width: 100%;
             height: 100%;
-            /* La opacidad visual se aplica aquí ahora */
-            transition: opacity 0.2s ease-in-out;
+            /* ELIMINADA la transición de opacidad para que sea instantánea/lineal */
+            /* transition: opacity 0.2s ease-in-out; */
         }
         .text-content {
             white-space: pre-wrap;
@@ -545,7 +545,7 @@
                         <path fill-rule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.38 2.872-1.667l11.553 6.917c1.164.696 1.164 2.67 0 3.366l-11.553 6.917C6.029 21.38 4.5 20.426 4.5 19.0V5.653Z" clip-rule="evenodd" />
                     </svg>
                     <svg id="pauseIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 hidden">
-                        <path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25ZM14.25 5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75-.75H7.5a.75.75 0 0 1-.75-.75V5.25ZM14.25 5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
                     </svg>
                 </button>
             </div>
@@ -565,6 +565,10 @@
                 </div>
             </div>
             <h3 class="text-md font-semibold mb-2" style="color: var(--theme-main-accent-light);">Audios Subidos</h3>
+            
+            <!-- BUSCADOR AÑADIDO AQUÍ -->
+            <input type="text" id="audioSearchInput" placeholder="Buscar audio..." class="w-full p-2 mb-4 border border-gray-600 bg-gray-700 text-gray-200 text-sm rounded focus:outline-none focus:ring-1 focus:ring-purple-500">
+
             <div id="audioPlaylist" class="space-y-2">
                 <p class="text-gray-400 text-sm">No hay audios subidos.</p>
             </div>
@@ -645,6 +649,9 @@
         const audioCountdown = document.getElementById('audioCountdown');
         const timelineRange = document.getElementById('timelineRange');
         const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        
+        // Variable del buscador
+        const audioSearchInput = document.getElementById('audioSearchInput');
 
         let selectedElementWrapper = null;
         let selectedAudioElement = null;
@@ -1141,10 +1148,12 @@
                 const controlsDiv = document.createElement('div');
                 controlsDiv.classList.add('flex', 'space-x-2');
 
+                // MODIFICADO: Estilo del botón editar (lápiz) igualado al de eliminar pero azul
                 const renameAudioBtn = document.createElement('button');
-                renameAudioBtn.classList.add('text-white', 'p-1', 'rounded-full', 'bg-blue-600', 'hover:bg-blue-700', 'transition-colors');
+                // Quitamos bg-blue-600 y redondeado para hacerlo texto/icono simple
+                renameAudioBtn.classList.add('text-blue-400', 'hover:text-blue-200', 'font-bold', 'px-1', 'transition-colors');
                 renameAudioBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
                         <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 0 0-1.383 2.26l-.397 1.639a.75.75 0 0 0 .95.95l1.639-.397a5.25 5.25 0 0 0 2.26-1.383l8.4-8.4Z" />
                         <path d="M5.25 6.75A.75.75 0 0 1 6 6h10.5a.75.75 0 0 1 0 1.5H6a.75.75 0 0 1-.75-.75Z" />
                     </svg>
@@ -1207,6 +1216,24 @@
                 });
             }
         }
+
+        // LÓGICA DEL BUSCADOR DE AUDIOS
+        audioSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const items = audioPlaylist.querySelectorAll('.audio-list-item');
+            
+            items.forEach(item => {
+                const nameSpan = item.querySelector('span');
+                if (nameSpan) {
+                    const name = nameSpan.textContent.toLowerCase();
+                    if (name.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                }
+            });
+        });
 
         function updateElementFromData(data) {
              const element = allElements.get(data.id);
@@ -1695,60 +1722,6 @@
             }
         }
 
-        function selectAudioElement(audioElement) {
-            deselectAllElements(); 
-
-            selectedAudioElement = audioElement;
-            document.querySelectorAll('.audio-list-item').forEach(item => item.classList.remove('selected'));
-            const listItem = audioPlaylist.querySelector(`.audio-list-item[data-id="${audioElement.id}"]`);
-            if (listItem) {
-                listItem.classList.add('selected');
-            }
-
-            opacityRange.disabled = true;
-            rotationRange.disabled = true;
-            sizeRange.disabled = true; 
-            duplicateElementBtn.disabled = true;
-            bringToFrontBtn.disabled = true;
-            resetOpacityBtn.disabled = true;
-            resetRotationBtn.disabled = true;
-            resetSizeBtn.disabled = true; 
-
-            textColorInput.disabled = true;
-            boldTextBtn.disabled = true;
-            italicTextBtn.disabled = true;
-            toggleTextBg.disabled = true;
-            toggleTextOutline.disabled = true;
-            fontSizeRange.disabled = true;
-            textBgColorInput.disabled = true;
-            textOutlineColorInput.disabled = true;
-            outlineThicknessRange.disabled = true;
-            textBgColorLabel.classList.add('text-gray-600');
-            textBgColorLabel.classList.remove('text-gray-300');
-            textOutlineColorLabel.classList.add('text-gray-600');
-            textOutlineColorLabel.classList.remove('text-gray-300');
-            outlineThicknessLabel.classList.add('text-gray-600');
-            outlineThicknessLabel.classList.remove('text-gray-300');
-
-
-            volumeRange.disabled = false;
-            timelineRange.disabled = false;
-            deleteElementBtn.disabled = false;
-
-
-            audioElement.muted = isMutedGlobally; 
-            volumeRange.value = audioElement.volume;
-            volumeValueDisplay.textContent = `${Math.round(audioElement.volume * 100)}%`;
-            updatePlayPauseButton(audioElement.paused);
-            currentAudioNameDisplay.textContent = audioElement.dataset.originalName || 'Audio Seleccionado';
-            
-            timelineRange.max = audioElement.duration || 0;
-            timelineRange.value = audioElement.currentTime || 0;
-            currentTimeDisplay.textContent = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
-
-            checkAudioReadyState(audioElement);
-        }
-
         function addHandles(elementWrapper) {
             const handles = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
             handles.forEach(pos => {
@@ -1843,12 +1816,22 @@
                 el.tagName === 'AUDIO' && el.dataset.readyForInteraction === 'true'
             );
 
-            if (audioElements.length === 0) {
-                audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
+            // Filtrar usando el valor del buscador si existe
+            const searchTerm = audioSearchInput.value.toLowerCase();
+            const filteredElements = audioElements.filter(el => 
+                el.dataset.originalName.toLowerCase().includes(searchTerm)
+            );
+
+            if (filteredElements.length === 0) {
+                if (audioElements.length > 0) {
+                    audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No se encontraron audios.</p>';
+                } else {
+                    audioPlaylist.innerHTML = '<p class="text-gray-400 text-sm">No hay audios subidos.</p>';
+                }
                 return;
             }
 
-            audioElements.sort((a, b) => a.dataset.originalName.localeCompare(b.dataset.originalName)).forEach(audioElement => {
+            filteredElements.sort((a, b) => a.dataset.originalName.localeCompare(b.dataset.originalName)).forEach(audioElement => {
                 addAudioItemToPlaylistUI(audioElement);
             });
         }
