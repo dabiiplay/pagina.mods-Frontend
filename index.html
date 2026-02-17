@@ -378,16 +378,6 @@
         .modal-button:hover {
             transform: translateY(-2px);
         }
-        .modal-button.mute {
-            background-color: #EF4444;
-            color: #FFFFFF;
-            border: 1px solid #DC2626;
-        }
-        .modal-button.sound {
-            background-color: #10B981;
-            color: #FFFFFF;
-            border: 1px solid #059669;
-        }
         .modal-button.ok {
             background-color: var(--theme-main-accent);
             color: #FFFFFF;
@@ -397,19 +387,7 @@
         .tab-content.active { display: block; }
     </style>
 </head>
-<body class="h-screen flex text-gray-800">
-    <div id="mutePreferenceModal" class="modal-overlay">
-        <div class="modal-dialog">
-            <h3 class="modal-title">¡Atención!</h3>
-            <p class="modal-message">
-                Se recomienda silenciar la página para evitar interrupciones.
-            </p>
-            <div class="modal-buttons">
-                <button id="modalMuteBtn" class="modal-button mute">Silenciar</button>
-                <button id="modalSoundBtn" class="modal-button sound">Con Sonido</button>
-            </div>
-        </div>
-    </div>
+<body class="h-screen flex text-gray-800 invisible-canvas">
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col sidebar-scroll text-gray-200 pt-4 z-20">
         <div class="border-b pb-2 border-gray-700 px-4">
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
@@ -545,7 +523,7 @@
                         <path fill-rule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.38 2.872-1.667l11.553 6.917c1.164.696 1.164 2.67 0 3.366l-11.553 6.917C6.029 21.38 4.5 20.426 4.5 19.0V5.653Z" clip-rule="evenodd" />
                     </svg>
                     <svg id="pauseIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 hidden">
-                        <path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75-.75H7.5a.75.75 0 0 1-.75-.75V5.25ZM14.25 5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25ZM14.25 5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
                     </svg>
                 </button>
             </div>
@@ -566,7 +544,6 @@
             </div>
             <h3 class="text-md font-semibold mb-2" style="color: var(--theme-main-accent-light);">Audios Subidos</h3>
             
-            <!-- BUSCADOR AÑADIDO AQUÍ -->
             <input type="text" id="audioSearchInput" placeholder="Buscar audio..." class="w-full p-2 mb-4 border border-gray-600 bg-gray-700 text-gray-200 text-sm rounded focus:outline-none focus:ring-1 focus:ring-purple-500">
 
             <div id="audioPlaylist" class="space-y-2">
@@ -643,14 +620,10 @@
         const zoomValue = document.getElementById('zoomValue');
         const dropArea = document.getElementById('dropArea');
         const wsStatusElement = document.getElementById('wsStatus');
-        const mutePreferenceModal = document.getElementById('mutePreferenceModal');
-        const modalMuteBtn = document.getElementById('modalMuteBtn');
-        const modalSoundBtn = document.getElementById('modalSoundBtn');
         const audioCountdown = document.getElementById('audioCountdown');
         const timelineRange = document.getElementById('timelineRange');
         const currentTimeDisplay = document.getElementById('currentTimeDisplay');
         
-        // Variable del buscador
         const audioSearchInput = document.getElementById('audioSearchInput');
 
         let selectedElementWrapper = null;
@@ -664,7 +637,10 @@
         let initialRotationAngle = 0;
         let initialElementRotation = 0;
         let currentZoom = 1.0;
+        
+        // MODIFICADO: Por defecto en true (silenciado)
         let isMutedGlobally = true;
+        
         const allElements = new Map();
         const WS_URL = 'wss://pagina-mods-websocket-server.onrender.com';
         let ws = null;
@@ -915,16 +891,12 @@
         }
 
         function saveElementsState() {
-            localStorage.setItem('isMutedGlobally', JSON.stringify(isMutedGlobally));
+            // Ya no guardamos el estado de mute en localStorage para que siempre respete la detección de OBS/navegador al inicio
+            // localStorage.setItem('isMutedGlobally', JSON.stringify(isMutedGlobally));
         }
 
         function loadElementsState() {
-            const storedMuteState = localStorage.getItem('isMutedGlobally');
-            if (storedMuteState !== null) {
-                isMutedGlobally = JSON.parse(storedMuteState);
-            } else {
-                isMutedGlobally = false; 
-            }
+            // Eliminada la carga de mute desde localStorage para forzar la detección
         }
 
         function applyElementTransform(element, rotation, scale) {
@@ -954,7 +926,6 @@
             wrapperDiv.style.zIndex = data.zIndex;
             
             const isReady = (data.readyForInteraction === 'true');
-            // MODIFICADO: Wrapper opacidad solo 0 o 1 para entrada
             wrapperDiv.style.opacity = isReady ? '1' : '0';
             wrapperDiv.style.pointerEvents = isReady ? 'auto' : 'none'; 
             wrapperDiv.dataset.readyForInteraction = data.readyForInteraction;
@@ -972,7 +943,6 @@
                 contentElement.classList.add('element-content');
                 wrapperDiv.style.width = data.width;
                 wrapperDiv.style.height = data.height;
-                // MODIFICADO: Opacidad visual al contenido
                 contentElement.style.opacity = data.opacity || 1;
 
                 if (contentElement.complete) {
@@ -987,7 +957,6 @@
                 contentElement.style.backgroundColor = data.backgroundColor;
                 contentElement.style.fontSize = data.fontSize;
                 contentElement.spellcheck = false;
-                // MODIFICADO: Opacidad visual al contenido
                 contentElement.style.opacity = data.opacity || 1;
 
                 wrapperDiv.style.width = data.width;
@@ -1148,9 +1117,7 @@
                 const controlsDiv = document.createElement('div');
                 controlsDiv.classList.add('flex', 'space-x-2');
 
-                // MODIFICADO: Estilo del botón editar (lápiz) igualado al de eliminar pero azul
                 const renameAudioBtn = document.createElement('button');
-                // Quitamos bg-blue-600 y redondeado para hacerlo texto/icono simple
                 renameAudioBtn.classList.add('text-blue-400', 'hover:text-blue-200', 'font-bold', 'px-1', 'transition-colors');
                 renameAudioBtn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
@@ -1194,9 +1161,8 @@
                     }
                 });
 
-                // Botón eliminar (X) - MODIFICADO para usar el estilo de X roja
                 const deleteAudioBtn = document.createElement('button');
-                deleteAudioBtn.innerHTML = '&times;'; // La X
+                deleteAudioBtn.innerHTML = '&times;'; 
                 deleteAudioBtn.classList.add('text-red-400', 'hover:text-red-200', 'font-bold', 'px-2', 'text-lg', 'leading-none', 'ml-2');
                 deleteAudioBtn.title = `Eliminar ${audioElement.dataset.originalName}`;
                 
@@ -1217,7 +1183,6 @@
             }
         }
 
-        // LÓGICA DEL BUSCADOR DE AUDIOS
         audioSearchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const items = audioPlaylist.querySelectorAll('.audio-list-item');
@@ -1291,7 +1256,6 @@
                 
                 const isReady = (data.readyForInteraction === 'true');
                 if (isReady) {
-                    // MODIFICADO: Wrapper opacidad fija a 1 si listo
                     element.style.opacity = '1';
                     element.style.pointerEvents = 'auto'; 
                     element.dataset.readyForInteraction = 'true';
@@ -1316,7 +1280,6 @@
                 
                 contentElement = element.querySelector('.element-content');
                 if (contentElement) {
-                    // MODIFICADO: Aplicar opacidad al contenido
                     contentElement.style.opacity = data.opacity;
 
                     if (data.type === 'text') {
@@ -1358,7 +1321,6 @@
                 }
             } else if (selectedElementWrapper && selectedElementWrapper.id === data.id) {
                 if (contentElement) { 
-                    // MODIFICADO: Leer opacidad del contenido
                     opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
                     opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                     rotationRange.value = data.rotation;
@@ -1620,7 +1582,6 @@
                 resetRotationBtn.disabled = false;
                 bringToFrontBtn.disabled = false;
 
-                // MODIFICADO: Leer opacidad del contenido
                 opacityRange.value = parseFloat(contentElement.style.opacity) || 1;
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                 
@@ -1784,12 +1745,10 @@
                 dragHandle.classList.add('drag-handle', 'mr-2', 'cursor-move', 'text-gray-400', 'hover:text-white');
                 dragHandle.setAttribute('draggable', 'true');
                 
-                // Nombre del elemento
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = name;
                 nameSpan.classList.add('flex-grow', 'truncate', 'mr-2');
 
-                // Botón eliminar (X)
                 const deleteBtn = document.createElement('button');
                 deleteBtn.innerHTML = '&times;';
                 deleteBtn.classList.add('text-red-400', 'hover:text-red-200', 'font-bold', 'px-2', 'text-lg', 'leading-none');
@@ -1816,7 +1775,6 @@
                 el.tagName === 'AUDIO' && el.dataset.readyForInteraction === 'true'
             );
 
-            // Filtrar usando el valor del buscador si existe
             const searchTerm = audioSearchInput.value.toLowerCase();
             const filteredElements = audioElements.filter(el => 
                 el.dataset.originalName.toLowerCase().includes(searchTerm)
@@ -1897,7 +1855,6 @@
             }
         }
 
-        // --- ESTA ES LA FUNCIÓN MODIFICADA PARA ARREGLAR DUPLICADOS ---
         function createLocalElementAndSend(file, srcData, audioDuration = null, isLocalUpload = false) {
             const newId = generateUniqueId();
             let elementState = {
@@ -1906,9 +1863,6 @@
             };
 
             if (file.type.startsWith('image/') || file.type.startsWith('image/gif')) {
-                // NO creamos el DOM localmente, solo calculamos dimensiones
-                // y enviamos al servidor. El servidor hará eco y entonces lo crearemos.
-                
                 const tempImg = new Image();
                 tempImg.onload = () => {
                     const defaultInitialSize = 200;
@@ -1949,16 +1903,11 @@
                         readyForInteraction: 'false',
                         readyTimestamp: readyTime
                     };
-                    
-                    // Solo enviamos al WebSocket. NO agregamos al DOM aquí.
                     sendWebSocketMessage('elementAdd', { element: elementState });
-                    
-                    // La confirmación visual vendrá del servidor a través de onmessage -> elementAdd
                 };
                 tempImg.src = srcData;
 
             } else if (file.type.startsWith('audio/')) {
-                // Lo mismo para audio, no lo agregamos a allElements hasta que el server responda
                 const initialElementState = {
                     ...elementState,
                     type: 'audio', src: srcData, volume: 0.5, currentTime: 0,
@@ -1972,7 +1921,6 @@
                 sendWebSocketMessage('elementAdd', { element: initialElementState });
             }
         }
-        // ----------------------------------------------------------------------
 
         imageUpload.addEventListener('change', (event) => {
             if (event.target.files.length > 0) {
@@ -1981,7 +1929,6 @@
             }
         });
         
-        // ... (resto de event listeners: addTextBtn, textInput, ranges, botones...) sin cambios necesarios
         addTextBtn.addEventListener('click', () => {
             if (allElements.size >= fileLimit) return;
 
@@ -1989,7 +1936,6 @@
             const newId = generateUniqueId();
             const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
             
-            // Calculamos posición pero NO creamos DOM, enviamos al socket
             const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
             const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
             const initialLeft = greenCanvasCenterX - (100 / 2);
@@ -2021,13 +1967,9 @@
                 readyTimestamp: readyTime
             };
             
-            // Igual que con imágenes, delegamos creación al servidor
             sendWebSocketMessage('elementAdd', { element: elementState });
         });
 
-        // ... (El resto del código JS sigue igual, solo modificamos la lógica de creación para confiar en el servidor) ...
-        // ... (inputs de texto, colores, botones de formato, audio player, drag and drop events, etc.) ...
-        
         textInput.addEventListener('input', () => {
              if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                 const isReady = selectedElementWrapper.dataset.readyForInteraction === 'true';
@@ -2088,7 +2030,6 @@
                     width: element.style.width,
                     height: element.style.height,
                     zIndex: element.style.zIndex,
-                    // MODIFICADO: Leer opacidad del contenido, no del wrapper
                     opacity: contentElement.style.opacity,
                     originalName: element.dataset.originalName || '',
                     readyForInteraction: element.dataset.readyForInteraction || 'true',
@@ -2135,11 +2076,8 @@
             return null;
         }
 
-        // ... (Listeners de opacity, rotation, size, duplicate, delete, text styles... sin cambios) ...
-
          opacityRange.addEventListener('input', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
-                // MODIFICADO: Aplicar opacidad al contenido
                 selectedElementWrapper.querySelector('.element-content').style.opacity = opacityRange.value;
                 opacityValue.textContent = `${Math.round(opacityRange.value * 100)}%`;
                 if (!dragSendTimeout) {
@@ -2196,7 +2134,6 @@
                 const newId = generateUniqueId();
                 const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
                 
-                // Para duplicar también confiamos en el servidor para crear la copia
                 const clonedState = { ...originalState };
                 clonedState.id = newId;
                 clonedState.left = `${parseFloat(selectedElementWrapper.style.left) + 20}px`;
@@ -2204,14 +2141,11 @@
                 clonedState.zIndex = getNextHighestZIndex();
                 clonedState.readyForInteraction = 'false';
                 clonedState.readyTimestamp = readyTime;
-                // La opacidad visual se copia del estado original
                 clonedState.opacity = originalState.opacity;
 
                 sendWebSocketMessage('elementAdd', { element: clonedState });
             }
         });
-        
-        // ... (delete btn, text styles listeners, resets... sin cambios) ...
         
          deleteElementBtn.addEventListener('click', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
@@ -2403,7 +2337,6 @@
 
         resetOpacityBtn.addEventListener('click', () => {
             if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
-                // MODIFICADO: Resetear opacidad del contenido
                 selectedElementWrapper.querySelector('.element-content').style.opacity = '1';
                 opacityRange.value = 1;
                 opacityValue.textContent = '100%';
@@ -2430,8 +2363,6 @@
                 sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
             }
         });
-        
-        // ... (audio controls, drag listeners, etc... el resto del código es idéntico al original para mantener la funcionalidad de UI) ...
 
         playPauseBtn.addEventListener('click', () => {
             if (selectedAudioElement) {
@@ -2537,7 +2468,6 @@
             }
         });
 
-        // ... Mouse and Touch Listeners (drag, resize, rotate) ...
         document.addEventListener('mousedown', (e) => {
             const target = e.target;
             const clickedWrapper = target.closest('.element-wrapper');
@@ -2597,7 +2527,6 @@
             }
         });
 
-        // Mouse Move
         document.addEventListener('mousemove', (e) => {
             const wrapperRect = mainCanvasWrapper.getBoundingClientRect();
             const currentMouseXOnUnscaledWrapper = (e.clientX - wrapperRect.left) / currentZoom;
@@ -2625,11 +2554,8 @@
                             const contentElement = selectedElementWrapper.querySelector('.element-content');
                             if (contentElement && (contentElement.tagName === 'IMG')) {
                                 const originalImageAspectRatio = parseFloat(selectedElementWrapper.dataset.initialAspectRatio);
-                                
                                 let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
                                 let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
-                                
-                                // Maintain aspect ratio for images logic...
                                 if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
                                     newWidth = potentialNewWidth;
                                     newHeight = newWidth / originalImageAspectRatio;
@@ -2637,96 +2563,46 @@
                                     newHeight = potentialNewHeight;
                                     newWidth = newHeight * originalImageAspectRatio;
                                 }
-
                                 newWidth = Math.max(20, newWidth);
                                 newHeight = Math.max(20, newHeight);
-
-                                if (activeHandle.includes('left')) {
-                                    newLeft = initialLeft + initialWidth - newWidth;
-                                }
-                                if (activeHandle.includes('top')) {
-                                    newTop = initialTop + initialHeight - newHeight;
-                                }
+                                if (activeHandle.includes('left')) newLeft = initialLeft + initialWidth - newWidth;
+                                if (activeHandle.includes('top')) newTop = initialTop + initialHeight - newHeight;
 
                             } else if (contentElement && contentElement.classList.contains('text-content')) {
-                                // Text resizing logic...
                                 switch (activeHandle) {
                                     case 'top-left': newWidth = initialWidth - dx; newHeight = initialHeight - dy; newLeft = initialLeft + dx; newTop = initialTop + dy; break;
                                     case 'top-right': newWidth = initialWidth + dx; newHeight = initialHeight - dy; newTop = initialTop + dy; break;
                                     case 'bottom-left': newWidth = initialWidth - dx; newHeight = initialHeight + dy; newLeft = initialLeft + dx; break;
                                     case 'bottom-right': newWidth = initialWidth + dx; newHeight = initialHeight + dy; break;
                                 }
-
-                                // ... text resizing calculations ...
                                 const textElement = contentElement;
                                 const tempDiv = document.createElement('div');
-                                tempDiv.style.position = 'absolute';
-                                tempDiv.style.visibility = 'hidden';
-                                // ... copy styles ...
-                                tempDiv.style.whiteSpace = 'pre-wrap';
-                                tempDiv.style.wordBreak = 'break-word';
-                                tempDiv.style.boxSizing = 'border-box';
+                                tempDiv.style.position = 'absolute'; tempDiv.style.visibility = 'hidden';
+                                tempDiv.style.whiteSpace = 'pre-wrap'; tempDiv.style.wordBreak = 'break-word'; tempDiv.style.boxSizing = 'border-box';
                                 tempDiv.style.fontSize = window.getComputedStyle(textElement).fontSize;
                                 tempDiv.style.fontWeight = window.getComputedStyle(textElement).fontWeight;
                                 tempDiv.style.fontStyle = window.getComputedStyle(textElement).fontStyle;
                                 tempDiv.style.fontFamily = window.getComputedStyle(textElement).fontFamily;
-                                tempDiv.style.lineHeight = '1';
-                                tempDiv.style.textAlign = 'center';
-                                tempDiv.style.display = 'flex';
-                                tempDiv.style.alignItems = 'center';
-                                tempDiv.style.justifyContent = 'center';
-                                // ... outline copy ...
+                                tempDiv.style.lineHeight = '1'; tempDiv.style.textAlign = 'center'; tempDiv.style.display = 'flex'; tempDiv.style.alignItems = 'center'; tempDiv.style.justifyContent = 'center';
                                 const outlineThickness = parseFloat(textElement.style.webkitTextStrokeWidth) || 0;
                                 const outlineColor = textElement.style.webkitTextStrokeColor || '#000000';
-                                if (outlineThickness > 0) {
-                                    tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`;
-                                    tempDiv.style.webkitTextStrokeColor = outlineColor;
-                                    tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor);
-                                } else {
-                                    tempDiv.style.webkitTextStrokeWidth = '0';
-                                    tempDiv.style.webkitTextStrokeColor = 'transparent';
-                                    tempDiv.style.textShadow = 'none';
-                                }
-
+                                if (outlineThickness > 0) { tempDiv.style.webkitTextStrokeWidth = `${outlineThickness}px`; tempDiv.style.webkitTextStrokeColor = outlineColor; tempDiv.style.textShadow = generateTextShadowForOutline(outlineThickness, outlineColor); } else { tempDiv.style.webkitTextStrokeWidth = '0'; tempDiv.style.webkitTextStrokeColor = 'transparent'; tempDiv.style.textShadow = 'none'; }
                                 tempDiv.textContent = textElement.textContent;
                                 document.body.appendChild(tempDiv);
-                                const rawTextRect = tempDiv.getBoundingClientRect();
-                                const minContentWidth = rawTextRect.width;
-                                const minContentHeight = rawTextRect.height;
+                                const rawTextRect = tempDiv.getBoundingClientRect(); const minContentWidth = rawTextRect.width; const minContentHeight = rawTextRect.height;
                                 document.body.removeChild(tempDiv);
-
-                                const wrapperPaddingHorizontal = 25;
-                                const wrapperPaddingVertical = 10;
-                                const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2));
-                                const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
-
-                                const widthDiff = clampedWidth - newWidth;
-                                const heightDiff = clampedHeight - newHeight;
-                                if (activeHandle.startsWith('top-')) newTop -= heightDiff;
-                                if (activeHandle.endsWith('-left')) newLeft -= widthDiff;
-                                newWidth = clampedWidth;
-                                newHeight = clampedHeight;
+                                const wrapperPaddingHorizontal = 25; const wrapperPaddingVertical = 10;
+                                const clampedWidth = Math.max(newWidth, minContentWidth + (wrapperPaddingHorizontal * 2)); const clampedHeight = Math.max(newHeight, minContentHeight + (wrapperPaddingVertical * 2));
+                                const widthDiff = clampedWidth - newWidth; const heightDiff = clampedHeight - newHeight;
+                                if (activeHandle.startsWith('top-')) newTop -= heightDiff; if (activeHandle.endsWith('-left')) newLeft -= widthDiff;
+                                newWidth = clampedWidth; newHeight = clampedHeight;
                             }
-
-                            newWidth = Math.max(20, newWidth);
-                            newHeight = Math.max(20, newHeight);
-
-                            selectedElementWrapper.style.width = `${newWidth}px`;
-                            selectedElementWrapper.style.height = `${newHeight}px`;
-                            selectedElementWrapper.style.left = `${newLeft}px`;
-                            selectedElementWrapper.style.top = `${newTop}px`;
-
-                            initialMouseX = currentMouseXOnUnscaledWrapper;
-                            initialMouseY = currentMouseYOnUnscaledWrapper;
-                            initialWidth = newWidth;
-                            initialHeight = newHeight;
-                            initialLeft = newLeft;
-                            initialTop = newTop;
-
+                            newWidth = Math.max(20, newWidth); newHeight = Math.max(20, newHeight);
+                            selectedElementWrapper.style.width = `${newWidth}px`; selectedElementWrapper.style.height = `${newHeight}px`; selectedElementWrapper.style.left = `${newLeft}px`; selectedElementWrapper.style.top = `${newTop}px`;
+                            initialMouseX = currentMouseXOnUnscaledWrapper; initialMouseY = currentMouseYOnUnscaledWrapper; initialWidth = newWidth; initialHeight = newHeight; initialLeft = newLeft; initialTop = newTop;
                         } else if (isRotating) {
                             const rect = selectedElementWrapper.getBoundingClientRect();
-                            const centerX = rect.left + rect.width / 2;
-                            const centerY = rect.top + rect.height / 2;
+                            const centerX = rect.left + rect.width / 2; const centerY = rect.top + rect.height / 2;
                             const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
                             const angleDiff = (currentAngle - initialRotationAngle) * 180 / Math.PI;
                             let newRotation = initialElementRotation + angleDiff;
@@ -2735,13 +2611,11 @@
                             applyElementTransform(selectedElementWrapper, newRotation, currentScale);
                             rotationRange.value = newRotation;
                             rotationValue.textContent = `${Math.round(newRotation)}°`;
-                            initialRotationAngle = currentAngle;
-                            initialElementRotation = newRotation;
+                            initialRotationAngle = currentAngle; initialElementRotation = newRotation;
                         }
                         pendingDOMUpdateAnimationFrame = null; 
                     });
                 }
-
                 if (!dragSendTimeout) {
                     dragSendTimeout = setTimeout(() => {
                         if (selectedElementWrapper) {
@@ -2773,8 +2647,7 @@
             activeHandle = '';
         });
 
-        // ... (Touch events logic - same as mouse but with touches array) ...
-         document.addEventListener('touchstart', (e) => {
+        document.addEventListener('touchstart', (e) => {
             const target = e.target;
             const clickedWrapper = target.closest('.element-wrapper');
             const clickedAudioListItem = target.closest('.audio-list-item');
@@ -2854,14 +2727,12 @@
                     e.preventDefault();
                     if (!pendingDOMUpdateAnimationFrame) {
                         pendingDOMUpdateAnimationFrame = requestAnimationFrame(() => {
-                             // ... (Same logic as mouse move but using touches[0] coords) ...
                              if (isDragging) {
                                 const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
                                 const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
                                 selectedElementWrapper.style.left = `${initialLeft + dx}px`;
                                 selectedElementWrapper.style.top = `${initialTop + dy}px`;
                             } else if (isResizing) {
-                                 // ... resize logic with touch coords ...
                                  const dx = currentTouchXOnUnscaledWrapper - initialMouseX;
                                  const dy = currentTouchYOnUnscaledWrapper - initialMouseY;
                                 let newWidth = initialWidth;
@@ -2885,7 +2756,6 @@
                                     if (activeHandle.includes('left')) newLeft = initialLeft + initialWidth - newWidth;
                                     if (activeHandle.includes('top')) newTop = initialTop + initialHeight - newHeight;
                                 } else if (contentElement && contentElement.classList.contains('text-content')) {
-                                     // ... text resize with touch ...
                                      switch (activeHandle) {
                                         case 'top-left': newWidth = initialWidth - dx; newHeight = initialHeight - dy; newLeft = initialLeft + dx; newTop = initialTop + dy; break;
                                         case 'top-right': newWidth = initialWidth + dx; newHeight = initialHeight - dy; newTop = initialTop + dy; break;
@@ -2918,7 +2788,6 @@
                                 selectedElementWrapper.style.width = `${newWidth}px`; selectedElementWrapper.style.height = `${newHeight}px`; selectedElementWrapper.style.left = `${newLeft}px`; selectedElementWrapper.style.top = `${newTop}px`;
                                 initialMouseX = currentTouchXOnUnscaledWrapper; initialMouseY = currentTouchYOnUnscaledWrapper; initialWidth = newWidth; initialHeight = newHeight; initialLeft = newLeft; initialTop = newTop;
                             } else if (isRotating) {
-                                 // ... rotate with touch ...
                                  const rect = selectedElementWrapper.getBoundingClientRect();
                                 const centerX = rect.left + rect.width / 2; const centerY = rect.top + rect.height / 2;
                                 const currentAngle = Math.atan2(e.touches[0].clientY - centerY, e.touches[0].clientX - centerX);
@@ -3122,22 +2991,19 @@
             updateAudioPlaylistDisplay();
             updateFileCountDisplay();
             applyZoom();
-            showMutePreferenceModal();
+            
+            // DETECCIÓN DE OBS/CSS PERSONALIZADO PARA ACTIVAR SONIDO
+            // Comprobamos si el body tiene background transparente
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.backgroundColor === 'transparent' || bodyStyle.backgroundColor === 'rgba(0, 0, 0, 0)') {
+                isMutedGlobally = false; // Fondo transparente -> Estamos en OBS -> Activar sonido
+                console.log("OBS detectado (fondo transparente): Sonido ACTIVADO");
+            } else {
+                isMutedGlobally = true; // Fondo normal -> Navegador -> Silenciar por defecto
+                console.log("Navegador detectado: Sonido SILENCIADO");
+            }
+            applyGlobalMuteState();
         });
-
-        function showMutePreferenceModal() {
-            mutePreferenceModal.classList.add('active');
-            modalMuteBtn.onclick = () => {
-                isMutedGlobally = true;
-                applyGlobalMuteState();
-                mutePreferenceModal.classList.remove('active');
-            };
-            modalSoundBtn.onclick = () => {
-                isMutedGlobally = false;
-                applyGlobalMuteState();
-                mutePreferenceModal.classList.remove('active');
-            };
-        }
     </script>
 </body>
 </html>
