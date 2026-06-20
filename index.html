@@ -660,7 +660,9 @@
         }
 
         const DRAG_SEND_THROTTLE_MS = 80; 
+        const LIVE_MOVE_THROTTLE_MS = 16;
         let dragSendTimeout = null;
+        let liveSendTimeout = null;
         let pendingDOMUpdateAnimationFrame = null;
 
         const ELEMENT_VISIBILITY_DELAY_MS = 2000;
@@ -741,6 +743,8 @@
                     updateElementFromData(message.element);
                     updateLayersList();
                     updateAudioPlaylistDisplay();
+                } else if (message.type === 'elementUpdateLive') {
+                    updateElementFromData(message.element);
                 } else if (message.type === 'elementDelete') {
                     deleteElementFromData(message.elementId);
                     updateLayersList();
@@ -2674,13 +2678,13 @@
                         pendingDOMUpdateAnimationFrame = null; 
                     });
                 }
-                if (!dragSendTimeout) {
-                    dragSendTimeout = setTimeout(() => {
+                if (!liveSendTimeout) {
+                    liveSendTimeout = setTimeout(() => {
                         if (selectedElementWrapper) {
-                            sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                            sendWebSocketMessage('elementUpdateLive', { element: getElementState(selectedElementWrapper) });
                         }
-                        dragSendTimeout = null;
-                    }, DRAG_SEND_THROTTLE_MS);
+                        liveSendTimeout = null;
+                    }, LIVE_MOVE_THROTTLE_MS);
                 }
             }
         });
@@ -2691,9 +2695,9 @@
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
                 }
-                if (dragSendTimeout) {
-                    clearTimeout(dragSendTimeout);
-                    dragSendTimeout = null;
+                if (liveSendTimeout) {
+                    clearTimeout(liveSendTimeout);
+                    liveSendTimeout = null;
                 }
                 if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
@@ -2861,13 +2865,13 @@
                             pendingDOMUpdateAnimationFrame = null; 
                         });
                     }
-                    if (!dragSendTimeout) { 
-                        dragSendTimeout = setTimeout(() => {
+                    if (!liveSendTimeout) { 
+                        liveSendTimeout = setTimeout(() => {
                             if (selectedElementWrapper) {
-                                sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
+                                sendWebSocketMessage('elementUpdateLive', { element: getElementState(selectedElementWrapper) });
                             }
-                            dragSendTimeout = null;
-                        }, DRAG_SEND_THROTTLE_MS);
+                            liveSendTimeout = null;
+                        }, LIVE_MOVE_THROTTLE_MS);
                     }
                 }
             }
@@ -2879,9 +2883,9 @@
                     cancelAnimationFrame(pendingDOMUpdateAnimationFrame);
                     pendingDOMUpdateAnimationFrame = null;
                 }
-                if (dragSendTimeout) {
-                    clearTimeout(dragSendTimeout);
-                    dragSendTimeout = null;
+                if (liveSendTimeout) {
+                    clearTimeout(liveSendTimeout);
+                    liveSendTimeout = null;
                 }
                 if (selectedElementWrapper && selectedElementWrapper.dataset.readyForInteraction === 'true') { 
                     sendWebSocketMessage('elementUpdate', { element: getElementState(selectedElementWrapper) });
