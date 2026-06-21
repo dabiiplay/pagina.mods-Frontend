@@ -110,6 +110,31 @@
             background-color: #4A5568;
             color: #FFFFFF;
         }
+        .tabs-scroll-wrapper {
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #4A5568 #1a202c;
+        }
+        .tabs-scroll-wrapper::-webkit-scrollbar {
+            height: 6px;
+        }
+        .tabs-scroll-wrapper::-webkit-scrollbar-track {
+            background: #1a202c;
+        }
+        .tabs-scroll-wrapper::-webkit-scrollbar-thumb {
+            background-color: #4A5568;
+            border-radius: 3px;
+        }
+        .tabs-scroll-wrapper .flex {
+            min-width: max-content;
+        }
+        .video-iframe {
+            border: 0;
+            pointer-events: none;
+        }
+        .element-wrapper.selected .video-iframe {
+            pointer-events: auto;
+        }
         .layer-item {
             display: flex;
             align-items: center;
@@ -399,11 +424,14 @@
             <div id="dropArea">Arrastra y suelta archivos aquí</div>
             <div id="wsStatus" class="disconnected">Desconectado</div>
         </div>
-        <div class="flex border-b border-gray-700">
-            <button class="tab-button active flex-1 text-center" data-tab="properties">Ajustes</button>
-            <button class="tab-button flex-1 text-center" data-tab="text">Texto</button>
-            <button class="tab-button flex-1 text-center" data-tab="audio">Audio</button>
-            <button class="tab-button flex-1 text-center" data-tab="layers">Capas</button>
+        <div class="tabs-scroll-wrapper border-b border-gray-700">
+            <div class="flex">
+                <button class="tab-button active flex-1 text-center" data-tab="properties">Ajustes</button>
+                <button class="tab-button flex-1 text-center" data-tab="text">Texto</button>
+                <button class="tab-button flex-1 text-center" data-tab="audio">Audio</button>
+                <button class="tab-button flex-1 text-center" data-tab="video">Video</button>
+                <button class="tab-button flex-1 text-center" data-tab="layers">Capas</button>
+            </div>
         </div>
         <div id="tab-content-properties" class="tab-content active flex-grow px-4">
             <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Controles de Elemento</h2>
@@ -550,6 +578,18 @@
                 <p class="text-gray-400 text-sm">No hay audios subidos.</p>
             </div>
         </div>
+        <div id="tab-content-video" class="tab-content flex-grow px-4">
+            <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Añadir Video</h2>
+            <div class="text-xs text-gray-400 mb-2">
+                Pega una URL de YouTube. El video se añade en pausa y con volumen al 30%.
+            </div>
+            <label for="videoUrlInput" class="block text-sm font-medium text-gray-300 mb-2">URL del video</label>
+            <input type="text" id="videoUrlInput" placeholder="https://www.youtube.com/watch?v=..." class="w-full p-2 mb-2 border border-gray-600 bg-gray-700 text-gray-100 focus:outline-none focus:ring-purple-400" style="--tw-ring-color: var(--theme-main-accent-lighter);">
+            <div id="videoUrlError" class="text-xs text-red-400 mb-2" style="display: none;"></div>
+            <button id="addVideoBtn" class="w-full text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-4" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
+                Subir
+            </button>
+        </div>
         <div id="tab-content-layers" class="tab-content flex-grow px-4">
             <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Capas de Elementos</h2>
             <div id="layersList" class="space-y-2">
@@ -577,6 +617,9 @@
         const sidebar = document.querySelector('aside');
         const imageUpload = document.getElementById('imageUpload');
         const addTextBtn = document.getElementById('addTextBtn');
+        const videoUrlInput = document.getElementById('videoUrlInput');
+        const addVideoBtn = document.getElementById('addVideoBtn');
+        const videoUrlError = document.getElementById('videoUrlError');
         const textInput = document.getElementById('textInput');
         const opacityRange = document.getElementById('opacityRange');
         const opacityValue = document.getElementById('opacityValue');
@@ -950,6 +993,21 @@
                 contentElement.style.opacity = data.opacity || 1;
 
                 if (contentElement.complete) {
+                }
+            } else if (data.type === 'video') {
+                contentElement = document.createElement('iframe');
+                contentElement.src = data.embedUrl;
+                contentElement.classList.add('element-content', 'video-iframe');
+                contentElement.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+                contentElement.setAttribute('allowfullscreen', '');
+                wrapperDiv.style.width = data.width;
+                wrapperDiv.style.height = data.height;
+                contentElement.style.opacity = data.opacity || 1;
+                if (data.platform) wrapperDiv.dataset.platform = data.platform;
+                if (data.embedUrl) wrapperDiv.dataset.embedUrl = data.embedUrl;
+                if (data.sourceUrl) wrapperDiv.dataset.sourceUrl = data.sourceUrl;
+                if (data.platform === 'youtube') {
+                    initYoutubeVolumeControl(contentElement);
                 }
             } else if (data.type === 'text') {
                  contentElement = document.createElement('div');
@@ -1563,7 +1621,7 @@
                 selectedElementWrapper = element;
                 selectedElementWrapper.classList.add('selected');
 
-                const contentElement = selectedElementWrapper.querySelector('img.element-content, div.text-content.element-content');
+                const contentElement = selectedElementWrapper.querySelector('img.element-content, div.text-content.element-content, iframe.element-content');
                 if (!contentElement) {
                     return;
                 }
@@ -1771,7 +1829,7 @@
             });
 
             sortedElements.forEach(elementWrapper => {
-                const contentElement = elementWrapper.querySelector('img.element-content, div.text-content.element-content');
+                const contentElement = elementWrapper.querySelector('img.element-content, div.text-content.element-content, iframe.element-content');
                 const layerItem = document.createElement('div');
                 layerItem.classList.add('layer-item');
                 layerItem.dataset.id = elementWrapper.id;
@@ -1779,6 +1837,8 @@
                 let name;
                 if (contentElement && contentElement.tagName === 'IMG') {
                     name = `Imagen: "${elementWrapper.dataset.originalName || contentElement.alt || elementWrapper.id}"`;
+                } else if (contentElement && contentElement.tagName === 'IFRAME') {
+                    name = `Video: "${elementWrapper.dataset.platform || 'video'}"`;
                 } else if (contentElement && contentElement.classList.contains('text-content')) {
                     name = `Texto: "${contentElement.textContent.substring(0, 20)}${contentElement.textContent.length > 20 ? '...' : ''}"`;
                 } else {
@@ -1987,6 +2047,115 @@
             }
         });
         
+        let youtubeApiReady = false;
+        let youtubeApiLoading = false;
+        const pendingYoutubePlayers = [];
+
+        function loadYoutubeApi() {
+            if (youtubeApiReady || youtubeApiLoading) return;
+            youtubeApiLoading = true;
+            const existingReadyCallback = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = function () {
+                youtubeApiReady = true;
+                if (typeof existingReadyCallback === 'function') existingReadyCallback();
+                pendingYoutubePlayers.forEach(iframe => attachYoutubePlayer(iframe));
+                pendingYoutubePlayers.length = 0;
+            };
+            const tag = document.createElement('script');
+            tag.src = 'https://www.youtube.com/iframe_api';
+            document.head.appendChild(tag);
+        }
+
+        function attachYoutubePlayer(iframe) {
+            if (!iframe.isConnected) return;
+            try {
+                new YT.Player(iframe, {
+                    events: {
+                        onReady: (event) => {
+                            event.target.setVolume(30);
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn('No se pudo inicializar el reproductor de YouTube:', e);
+            }
+        }
+
+        function initYoutubeVolumeControl(iframe) {
+            loadYoutubeApi();
+            if (youtubeApiReady) {
+                attachYoutubePlayer(iframe);
+            } else {
+                pendingYoutubePlayers.push(iframe);
+            }
+        }
+
+        function getVideoEmbedInfo(url) {
+            const trimmedUrl = (url || '').trim();
+
+            const youtubeMatch = trimmedUrl.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            if (youtubeMatch) {
+                const origin = encodeURIComponent(window.location.origin);
+                return {
+                    platform: 'youtube',
+                    embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}?enablejsapi=1&autoplay=0&origin=${origin}`
+                };
+            }
+
+            return null;
+        }
+
+        addVideoBtn.addEventListener('click', () => {
+            if (allElements.size >= fileLimit) return;
+
+            videoUrlError.style.display = 'none';
+            const rawUrl = videoUrlInput.value.trim();
+            if (!rawUrl) {
+                videoUrlError.textContent = 'Pega primero una URL de video.';
+                videoUrlError.style.display = 'block';
+                return;
+            }
+
+            const embedInfo = getVideoEmbedInfo(rawUrl);
+            if (!embedInfo) {
+                videoUrlError.textContent = 'URL no soportada. Usa un enlace de YouTube.';
+                videoUrlError.style.display = 'block';
+                return;
+            }
+
+            const newId = generateUniqueId();
+            const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
+
+            const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
+            const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
+            const initialWidth = 320;
+            const initialHeight = 180;
+            const initialLeft = greenCanvasCenterX - (initialWidth / 2);
+            const initialTop = greenCanvasCenterY - (initialHeight / 2);
+
+            const elementState = {
+                id: newId,
+                left: `${initialLeft}px`,
+                top: `${initialTop}px`,
+                width: `${initialWidth}px`,
+                height: `${initialHeight}px`,
+                rotation: 0,
+                scale: 1,
+                zIndex: getNextHighestZIndex(),
+                opacity: '1',
+                originalName: 'Video Element',
+                type: 'video',
+                platform: embedInfo.platform,
+                embedUrl: embedInfo.embedUrl,
+                sourceUrl: rawUrl,
+                readyForInteraction: 'false',
+                readyTimestamp: readyTime
+            };
+
+            sendWebSocketMessage('elementAdd', { element: elementState });
+            videoUrlInput.value = '';
+        });
+
         addTextBtn.addEventListener('click', () => {
             if (allElements.size >= fileLimit) return;
 
@@ -2076,7 +2245,7 @@
                     isLocalUpload: element.dataset.isLocalUpload === 'true' ? true : false
                 };
             } else if (element.classList && element.classList.contains('element-wrapper')) {
-                const contentElement = element.querySelector('img.element-content, div.text-content.element-content');
+                const contentElement = element.querySelector('img.element-content, div.text-content.element-content, iframe.element-content');
                 if (!contentElement) {
                     return null;
                 }
@@ -2116,6 +2285,11 @@
                     state.src = contentElement.src;
                     state.initialAspectRatio = element.dataset.initialAspectRatio;
                     state.publicId = element.dataset.publicId;
+                } else if (contentElement.tagName === 'IFRAME') {
+                    state.type = 'video';
+                    state.embedUrl = element.dataset.embedUrl || contentElement.src;
+                    state.platform = element.dataset.platform;
+                    state.sourceUrl = element.dataset.sourceUrl;
                 } else if (contentElement.classList.contains('text-content')) {
                     state.type = 'text';
                     state.textContent = contentElement.textContent;
@@ -2630,6 +2804,22 @@
                                 if (activeHandle.includes('left')) newLeft = initialLeft + initialWidth - newWidth;
                                 if (activeHandle.includes('top')) newTop = initialTop + initialHeight - newHeight;
 
+                            } else if (contentElement && contentElement.tagName === 'IFRAME') {
+                                const videoAspectRatio = 16 / 9;
+                                let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
+                                let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
+                                if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
+                                    newWidth = potentialNewWidth;
+                                    newHeight = newWidth / videoAspectRatio;
+                                } else {
+                                    newHeight = potentialNewHeight;
+                                    newWidth = newHeight * videoAspectRatio;
+                                }
+                                newWidth = Math.max(80, newWidth);
+                                newHeight = Math.max(45, newHeight);
+                                if (activeHandle.includes('left')) newLeft = initialLeft + initialWidth - newWidth;
+                                if (activeHandle.includes('top')) newTop = initialTop + initialHeight - newHeight;
+
                             } else if (contentElement && contentElement.classList.contains('text-content')) {
                                 switch (activeHandle) {
                                     case 'top-left': newWidth = initialWidth - dx; newHeight = initialHeight - dy; newLeft = initialLeft + dx; newTop = initialTop + dy; break;
@@ -2815,6 +3005,21 @@
                                     }
                                     newWidth = Math.max(20, newWidth);
                                     newHeight = Math.max(20, newHeight);
+                                    if (activeHandle.includes('left')) newLeft = initialLeft + initialWidth - newWidth;
+                                    if (activeHandle.includes('top')) newTop = initialTop + initialHeight - newHeight;
+                                } else if (contentElement && contentElement.tagName === 'IFRAME') {
+                                    const videoAspectRatio = 16 / 9;
+                                    let potentialNewWidth = initialWidth + (activeHandle.includes('left') ? -dx : dx);
+                                    let potentialNewHeight = initialHeight + (activeHandle.includes('top') ? -dy : dy);
+                                    if (Math.abs(potentialNewWidth - initialWidth) > Math.abs(potentialNewHeight - initialHeight)) {
+                                        newWidth = potentialNewWidth;
+                                        newHeight = newWidth / videoAspectRatio;
+                                    } else {
+                                        newHeight = potentialNewHeight;
+                                        newWidth = newHeight * videoAspectRatio;
+                                    }
+                                    newWidth = Math.max(80, newWidth);
+                                    newHeight = Math.max(45, newHeight);
                                     if (activeHandle.includes('left')) newLeft = initialLeft + initialWidth - newWidth;
                                     if (activeHandle.includes('top')) newTop = initialTop + initialHeight - newHeight;
                                 } else if (contentElement && contentElement.classList.contains('text-content')) {
