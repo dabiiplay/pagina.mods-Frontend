@@ -114,10 +114,7 @@
             overflow-x: auto;
             scrollbar-width: thin;
             scrollbar-color: #4A5568 #1a202c;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background-color: #111827;
+            flex-shrink: 0;
         }
         .tabs-scroll-wrapper::-webkit-scrollbar {
             height: 6px;
@@ -135,6 +132,21 @@
         .video-iframe {
             border: 0;
             pointer-events: none;
+        }
+        .video-hud-cover {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            z-index: 5;
+            pointer-events: none;
+            transition: opacity 0.3s ease-out;
+        }
+        .video-hud-cover.hidden-cover {
+            opacity: 0;
+            visibility: hidden;
         }
         .layer-item {
             display: flex;
@@ -414,7 +426,7 @@
     </style>
 </head>
 <body class="h-screen flex text-gray-800 invisible-canvas">
-    <aside class="w-80 bg-gray-900 shadow-lg flex flex-col sidebar-scroll text-gray-200 pt-4 z-20">
+    <aside class="w-80 bg-gray-900 shadow-lg flex flex-col text-gray-200 pt-4 z-20" style="overflow: hidden;">
         <div class="border-b pb-2 border-gray-700 px-4">
             <span class="block text-xs text-gray-500 text-center mb-2">v1.0</span>
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
@@ -435,6 +447,7 @@
                 <button class="tab-button flex-1 text-center" data-tab="layers">Capas</button>
             </div>
         </div>
+        <div class="sidebar-scroll" style="flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; min-height: 0;">
         <div id="tab-content-properties" class="tab-content active flex-grow px-4">
             <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Controles de Elemento</h2>
             <div class="mb-4">
@@ -623,6 +636,7 @@
             <div id="layersList" class="space-y-2">
                 <p class="text-gray-400 text-sm">No hay elementos en la página.</p>
             </div>
+        </div>
         </div>
     </aside>
     <main id="editorCanvas" class="relative m-4 shadow-inner">
@@ -1045,6 +1059,14 @@
                 wrapperDiv.dataset.lastVolume = (typeof data.volume === 'number') ? data.volume : 0.3;
                 wrapperDiv.dataset.lastCurrentTime = (typeof data.currentTime === 'number') ? data.currentTime : 0;
                 wrapperDiv.dataset.lastIsPlaying = data.isPlaying ? 'true' : 'false';
+
+                const hudCover = document.createElement('div');
+                hudCover.classList.add('video-hud-cover');
+                if (data.isPlaying) {
+                    hudCover.classList.add('hidden-cover');
+                }
+                wrapperDiv.appendChild(hudCover);
+
                 if (data.platform === 'youtube') {
                     initYoutubeVideoPlayer(contentElement, data);
                 }
@@ -1499,6 +1521,9 @@
                     if (contentElement && contentElement.tagName === 'IFRAME') {
                         if (selectedVideoElementId === elementId) {
                             deselectVideoControls();
+                        }
+                        if (element.dataset.hudCoverTimeoutId) {
+                            clearTimeout(parseInt(element.dataset.hudCoverTimeoutId, 10));
                         }
                         youtubePlayers.delete(elementId);
                     }
@@ -2201,6 +2226,8 @@
                     updateVideoPlayPauseButton(!isPlaying);
                 }
 
+                updateVideoHudCover(wrapper, isPlaying);
+
                 if (applyingRemoteVideoChange.has(elementId)) {
                     return;
                 }
@@ -2213,6 +2240,25 @@
                 wrapper.dataset.lastCurrentTime = state.currentTime;
                 wrapper.dataset.lastIsPlaying = isPlaying ? 'true' : 'false';
                 sendWebSocketMessage('elementUpdate', { element: state });
+            }
+        }
+
+        const VIDEO_HUD_COVER_DELAY_MS = 4000;
+
+        function updateVideoHudCover(wrapper, isPlaying) {
+            const cover = wrapper.querySelector('.video-hud-cover');
+            if (!cover) return;
+
+            if (wrapper.dataset.hudCoverTimeoutId) {
+                clearTimeout(parseInt(wrapper.dataset.hudCoverTimeoutId, 10));
+                delete wrapper.dataset.hudCoverTimeoutId;
+            }
+
+            if (isPlaying) {
+                const timeoutId = setTimeout(() => {
+                    cover.classList.add('hidden-cover');
+                }, VIDEO_HUD_COVER_DELAY_MS);
+                wrapper.dataset.hudCoverTimeoutId = String(timeoutId);
             }
         }
 
