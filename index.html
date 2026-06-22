@@ -132,9 +132,6 @@
             border: 0;
             pointer-events: none;
         }
-        .element-wrapper.selected .video-iframe {
-            pointer-events: auto;
-        }
         .layer-item {
             display: flex;
             align-items: center;
@@ -589,6 +586,32 @@
             <button id="addVideoBtn" class="w-full text-white font-bold py-2 px-4 shadow-md transition-all duration-200 mb-4" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 Subir
             </button>
+            <h3 class="text-md font-semibold mb-2" style="color: var(--theme-main-accent-light);">Controles de Video</h3>
+            <span id="currentVideoName" class="block text-sm font-medium text-gray-400 mb-2"></span>
+            <div class="flex items-center justify-center space-x-4 mb-4">
+                <button id="videoPlayPauseBtn" disabled class="text-white font-bold p-3 rounded-full shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
+                    <svg id="videoPlayIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path fill-rule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.38 2.872-1.667l11.553 6.917c1.164.696 1.164 2.67 0 3.366l-11.553 6.917C6.029 21.38 4.5 20.426 4.5 19.0V5.653Z" clip-rule="evenodd" />
+                    </svg>
+                    <svg id="videoPauseIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 hidden">
+                        <path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75-.75H7.5a.75.75 0 0 1-.75-.75V5.25ZM14.25 5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            <div class="mb-4">
+                <label for="videoTimelineRange" class="block text-sm font-medium text-gray-300 mb-2">Línea de tiempo</label>
+                <div class="flex items-center space-x-2">
+                    <input type="range" id="videoTimelineRange" min="0" max="100" step="0.1" value="0" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                    <span id="videoCurrentTimeDisplay" class="text-xs text-gray-400 w-16 text-right">0:00 / 0:00</span>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label for="videoVolumeRange" class="block text-sm font-medium text-gray-300 mb-2">Volumen</label>
+                <div class="flex items-center space-x-2">
+                    <input type="range" id="videoVolumeRange" min="0" max="1" step="0.01" value="0.3" disabled class="w-full h-2 bg-gray-700 appearance-none cursor-pointer range-shadow">
+                    <span id="videoVolumeValue" class="text-xs text-gray-400 w-10 text-right">30%</span>
+                </div>
+            </div>
         </div>
         <div id="tab-content-layers" class="tab-content flex-grow px-4">
             <h2 class="text-lg font-semibold mb-4" style="color: var(--theme-main-accent-light);">Capas de Elementos</h2>
@@ -620,6 +643,14 @@
         const videoUrlInput = document.getElementById('videoUrlInput');
         const addVideoBtn = document.getElementById('addVideoBtn');
         const videoUrlError = document.getElementById('videoUrlError');
+        const videoPlayPauseBtn = document.getElementById('videoPlayPauseBtn');
+        const videoPlayIcon = document.getElementById('videoPlayIcon');
+        const videoPauseIcon = document.getElementById('videoPauseIcon');
+        const videoTimelineRange = document.getElementById('videoTimelineRange');
+        const videoCurrentTimeDisplay = document.getElementById('videoCurrentTimeDisplay');
+        const videoVolumeRange = document.getElementById('videoVolumeRange');
+        const videoVolumeValue = document.getElementById('videoVolumeValue');
+        const currentVideoName = document.getElementById('currentVideoName');
         const textInput = document.getElementById('textInput');
         const opacityRange = document.getElementById('opacityRange');
         const opacityValue = document.getElementById('opacityValue');
@@ -1007,7 +1038,7 @@
                 if (data.embedUrl) wrapperDiv.dataset.embedUrl = data.embedUrl;
                 if (data.sourceUrl) wrapperDiv.dataset.sourceUrl = data.sourceUrl;
                 if (data.platform === 'youtube') {
-                    initYoutubeVolumeControl(contentElement);
+                    initYoutubeVideoPlayer(contentElement, data);
                 }
             } else if (data.type === 'text') {
                  contentElement = document.createElement('div');
@@ -1366,6 +1397,37 @@
                             contentElement.style.textShadow = 'none';
                         }
                         adjustTextElementWrapperSize(element);
+                    } else if (data.type === 'video' && contentElement.tagName === 'IFRAME') {
+                        if (data.sourceUrl) element.dataset.sourceUrl = data.sourceUrl;
+
+                        const ytPlayer = youtubePlayers.get(element.id);
+                        if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                            if (typeof data.volume === 'number') {
+                                const currentVolume = (ytPlayer.getVolume() || 0) / 100;
+                                if (Math.abs(currentVolume - data.volume) > 0.01) {
+                                    ytPlayer.setVolume(Math.round(data.volume * 100));
+                                }
+                            }
+
+                            if (!isDraggingVideoTimeline && typeof data.currentTime === 'number') {
+                                const localTime = ytPlayer.getCurrentTime() || 0;
+                                const timeDifference = Math.abs(localTime - data.currentTime);
+                                if (timeDifference > 1.5) {
+                                    ytPlayer.seekTo(data.currentTime, true);
+                                }
+                            }
+
+                            const isLocallyPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
+                            if (data.isPlaying && !isLocallyPlaying) {
+                                ytPlayer.playVideo();
+                            } else if (!data.isPlaying && isLocallyPlaying) {
+                                ytPlayer.pauseVideo();
+                            }
+
+                            if (selectedVideoElementId === element.id) {
+                                selectVideoElement(element.id);
+                            }
+                        }
                     }
                 }
             }
@@ -1418,6 +1480,12 @@
                         contentElement.pause();
                         contentElement.src = '';
                         contentElement.load();
+                    }
+                    if (contentElement && contentElement.tagName === 'IFRAME') {
+                        if (selectedVideoElementId === elementId) {
+                            deselectVideoControls();
+                        }
+                        youtubePlayers.delete(elementId);
                     }
                     element.remove();
                     if (selectedElementWrapper && selectedElementWrapper.id === elementId) {
@@ -1519,6 +1587,7 @@
 
             document.querySelectorAll('.audio-list-item').forEach(item => item.classList.remove('selected'));
             deselectAudioControls();
+            deselectVideoControls();
         }
 
         function deselectAudioControls() {
@@ -1734,6 +1803,12 @@
                     textOutlineColorLabel.classList.remove('text-gray-300');
                     outlineThicknessLabel.classList.add('text-gray-600');
                     outlineThicknessLabel.classList.remove('text-gray-300');
+                }
+
+                if (contentElement.tagName === 'IFRAME') {
+                    selectVideoElement(selectedElementWrapper.id);
+                } else if (selectedVideoElementId) {
+                    deselectVideoControls();
                 }
 
                 deselectAudioControls();
@@ -2050,6 +2125,9 @@
         let youtubeApiReady = false;
         let youtubeApiLoading = false;
         const pendingYoutubePlayers = [];
+        const youtubePlayers = new Map();
+        let selectedVideoElementId = null;
+        let isDraggingVideoTimeline = false;
 
         function loadYoutubeApi() {
             if (youtubeApiReady || youtubeApiLoading) return;
@@ -2058,7 +2136,7 @@
             window.onYouTubeIframeAPIReady = function () {
                 youtubeApiReady = true;
                 if (typeof existingReadyCallback === 'function') existingReadyCallback();
-                pendingYoutubePlayers.forEach(iframe => attachYoutubePlayer(iframe));
+                pendingYoutubePlayers.forEach(({ iframe, data }) => attachYoutubePlayer(iframe, data));
                 pendingYoutubePlayers.length = 0;
             };
             const tag = document.createElement('script');
@@ -2066,13 +2144,28 @@
             document.head.appendChild(tag);
         }
 
-        function attachYoutubePlayer(iframe) {
+        function attachYoutubePlayer(iframe, data) {
             if (!iframe.isConnected) return;
+            const elementId = data.id;
             try {
-                new YT.Player(iframe, {
+                const player = new YT.Player(iframe, {
                     events: {
                         onReady: (event) => {
-                            event.target.setVolume(30);
+                            const initialVolume = (typeof data.volume === 'number') ? data.volume : 0.3;
+                            event.target.setVolume(Math.round(initialVolume * 100));
+                            if (typeof data.currentTime === 'number' && data.currentTime > 0) {
+                                event.target.seekTo(data.currentTime, true);
+                            }
+                            youtubePlayers.set(elementId, player);
+                            if (data.isPlaying) {
+                                event.target.playVideo();
+                            }
+                            if (selectedVideoElementId === elementId) {
+                                selectVideoElement(elementId);
+                            }
+                        },
+                        onStateChange: (event) => {
+                            handleYoutubePlayerStateChange(elementId, event);
                         }
                     }
                 });
@@ -2081,14 +2174,157 @@
             }
         }
 
-        function initYoutubeVolumeControl(iframe) {
-            loadYoutubeApi();
-            if (youtubeApiReady) {
-                attachYoutubePlayer(iframe);
-            } else {
-                pendingYoutubePlayers.push(iframe);
+        function handleYoutubePlayerStateChange(elementId, event) {
+            const wrapper = allElements.get(elementId);
+            if (!wrapper) return;
+
+            if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
+                const isPlaying = event.data === YT.PlayerState.PLAYING;
+                const state = getElementState(wrapper);
+                state.isPlaying = isPlaying;
+                state.paused = !isPlaying;
+                state.currentTime = event.target.getCurrentTime();
+                sendWebSocketMessage('elementUpdate', { element: state });
+
+                if (selectedVideoElementId === elementId) {
+                    updateVideoPlayPauseButton(!isPlaying);
+                }
             }
         }
+
+        function initYoutubeVideoPlayer(iframe, data) {
+            loadYoutubeApi();
+            if (youtubeApiReady) {
+                attachYoutubePlayer(iframe, data);
+            } else {
+                pendingYoutubePlayers.push({ iframe, data });
+            }
+        }
+
+        function updateVideoPlayPauseButton(isPaused) {
+            if (isPaused) {
+                videoPlayIcon.classList.remove('hidden');
+                videoPauseIcon.classList.add('hidden');
+            } else {
+                videoPlayIcon.classList.add('hidden');
+                videoPauseIcon.classList.remove('hidden');
+            }
+        }
+
+        function deselectVideoControls() {
+            selectedVideoElementId = null;
+            videoPlayPauseBtn.disabled = true;
+            videoTimelineRange.disabled = true;
+            videoTimelineRange.value = 0;
+            videoVolumeRange.disabled = true;
+            videoVolumeRange.value = 0.3;
+            videoVolumeValue.textContent = '30%';
+            videoCurrentTimeDisplay.textContent = '0:00 / 0:00';
+            currentVideoName.textContent = '';
+            updateVideoPlayPauseButton(true);
+        }
+
+        function selectVideoElement(elementId) {
+            const wrapper = allElements.get(elementId);
+            const player = youtubePlayers.get(elementId);
+            if (!wrapper || !player || typeof player.getCurrentTime !== 'function') {
+                return;
+            }
+
+            selectedVideoElementId = elementId;
+            videoPlayPauseBtn.disabled = false;
+            videoTimelineRange.disabled = false;
+            videoVolumeRange.disabled = false;
+            currentVideoName.textContent = wrapper.dataset.sourceUrl || 'Video seleccionado';
+
+            const duration = player.getDuration() || 0;
+            const currentTime = player.getCurrentTime() || 0;
+            videoTimelineRange.max = duration;
+            if (!isDraggingVideoTimeline) {
+                videoTimelineRange.value = currentTime;
+            }
+            videoCurrentTimeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+
+            const volume = (player.getVolume() || 0) / 100;
+            videoVolumeRange.value = volume;
+            videoVolumeValue.textContent = `${Math.round(volume * 100)}%`;
+
+            const playerState = player.getPlayerState();
+            updateVideoPlayPauseButton(playerState !== YT.PlayerState.PLAYING);
+        }
+
+        setInterval(() => {
+            if (!selectedVideoElementId) return;
+            const player = youtubePlayers.get(selectedVideoElementId);
+            if (!player || typeof player.getCurrentTime !== 'function') return;
+            if (isDraggingVideoTimeline) return;
+
+            const duration = player.getDuration() || 0;
+            const currentTime = player.getCurrentTime() || 0;
+            videoTimelineRange.max = duration;
+            videoTimelineRange.value = currentTime;
+            videoCurrentTimeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+        }, 500);
+
+        videoPlayPauseBtn.addEventListener('click', () => {
+            if (!selectedVideoElementId) return;
+            const player = youtubePlayers.get(selectedVideoElementId);
+            const wrapper = allElements.get(selectedVideoElementId);
+            if (!player || !wrapper) return;
+
+            const isCurrentlyPlaying = player.getPlayerState() === YT.PlayerState.PLAYING;
+            if (isCurrentlyPlaying) {
+                player.pauseVideo();
+            } else {
+                player.playVideo();
+            }
+        });
+
+        videoVolumeRange.addEventListener('input', () => {
+            if (!selectedVideoElementId) return;
+            const player = youtubePlayers.get(selectedVideoElementId);
+            const wrapper = allElements.get(selectedVideoElementId);
+            if (!player || !wrapper) return;
+
+            const newVolume = parseFloat(videoVolumeRange.value);
+            player.setVolume(Math.round(newVolume * 100));
+            videoVolumeValue.textContent = `${Math.round(newVolume * 100)}%`;
+
+            const state = getElementState(wrapper);
+            state.volume = newVolume;
+            state.currentTime = player.getCurrentTime();
+            state.isPlaying = player.getPlayerState() === YT.PlayerState.PLAYING;
+            state.paused = !state.isPlaying;
+            sendWebSocketMessage('elementUpdate', { element: state });
+        });
+
+        videoTimelineRange.addEventListener('mousedown', () => {
+            isDraggingVideoTimeline = true;
+        });
+
+        videoTimelineRange.addEventListener('mouseup', () => {
+            isDraggingVideoTimeline = false;
+            if (!selectedVideoElementId) return;
+            const player = youtubePlayers.get(selectedVideoElementId);
+            const wrapper = allElements.get(selectedVideoElementId);
+            if (!player || !wrapper) return;
+
+            const newTime = parseFloat(videoTimelineRange.value);
+            player.seekTo(newTime, true);
+
+            const state = getElementState(wrapper);
+            state.currentTime = newTime;
+            state.isPlaying = player.getPlayerState() === YT.PlayerState.PLAYING;
+            state.paused = !state.isPlaying;
+            sendWebSocketMessage('elementUpdate', { element: state });
+        });
+
+        videoTimelineRange.addEventListener('input', () => {
+            if (!selectedVideoElementId) return;
+            const player = youtubePlayers.get(selectedVideoElementId);
+            const duration = player ? (player.getDuration() || 0) : 0;
+            videoCurrentTimeDisplay.textContent = `${formatTime(parseFloat(videoTimelineRange.value))} / ${formatTime(duration)}`;
+        });
 
         function getVideoEmbedInfo(url) {
             const trimmedUrl = (url || '').trim();
@@ -2148,6 +2384,10 @@
                 platform: embedInfo.platform,
                 embedUrl: embedInfo.embedUrl,
                 sourceUrl: rawUrl,
+                volume: 0.3,
+                currentTime: 0,
+                isPlaying: false,
+                paused: true,
                 readyForInteraction: 'false',
                 readyTimestamp: readyTime
             };
@@ -2290,6 +2530,15 @@
                     state.embedUrl = element.dataset.embedUrl || contentElement.src;
                     state.platform = element.dataset.platform;
                     state.sourceUrl = element.dataset.sourceUrl;
+
+                    const ytPlayer = youtubePlayers.get(element.id);
+                    if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                        state.volume = (ytPlayer.getVolume() || 0) / 100;
+                        state.currentTime = ytPlayer.getCurrentTime();
+                        const isPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
+                        state.isPlaying = isPlaying;
+                        state.paused = !isPlaying;
+                    }
                 } else if (contentElement.classList.contains('text-content')) {
                     state.type = 'text';
                     state.textContent = contentElement.textContent;
