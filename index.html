@@ -1037,6 +1037,9 @@
                 if (data.platform) wrapperDiv.dataset.platform = data.platform;
                 if (data.embedUrl) wrapperDiv.dataset.embedUrl = data.embedUrl;
                 if (data.sourceUrl) wrapperDiv.dataset.sourceUrl = data.sourceUrl;
+                wrapperDiv.dataset.lastVolume = (typeof data.volume === 'number') ? data.volume : 0.3;
+                wrapperDiv.dataset.lastCurrentTime = (typeof data.currentTime === 'number') ? data.currentTime : 0;
+                wrapperDiv.dataset.lastIsPlaying = data.isPlaying ? 'true' : 'false';
                 if (data.platform === 'youtube') {
                     initYoutubeVideoPlayer(contentElement, data);
                 }
@@ -1399,9 +1402,14 @@
                         adjustTextElementWrapperSize(element);
                     } else if (data.type === 'video' && contentElement.tagName === 'IFRAME') {
                         if (data.sourceUrl) element.dataset.sourceUrl = data.sourceUrl;
+                        if (typeof data.volume === 'number') element.dataset.lastVolume = data.volume;
+                        if (typeof data.currentTime === 'number') element.dataset.lastCurrentTime = data.currentTime;
+                        if (typeof data.isPlaying === 'boolean') element.dataset.lastIsPlaying = data.isPlaying ? 'true' : 'false';
 
                         const ytPlayer = youtubePlayers.get(element.id);
                         if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                            applyingRemoteVideoChange.add(element.id);
+
                             if (typeof data.volume === 'number') {
                                 const currentVolume = (ytPlayer.getVolume() || 0) / 100;
                                 if (Math.abs(currentVolume - data.volume) > 0.01) {
@@ -1427,6 +1435,8 @@
                             if (selectedVideoElementId === element.id) {
                                 selectVideoElement(element.id);
                             }
+
+                            setTimeout(() => applyingRemoteVideoChange.delete(element.id), 300);
                         }
                     }
                 }
@@ -2128,6 +2138,7 @@
         const youtubePlayers = new Map();
         let selectedVideoElementId = null;
         let isDraggingVideoTimeline = false;
+        const applyingRemoteVideoChange = new Set();
 
         function loadYoutubeApi() {
             if (youtubeApiReady || youtubeApiLoading) return;
@@ -2180,15 +2191,23 @@
 
             if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
                 const isPlaying = event.data === YT.PlayerState.PLAYING;
-                const state = getElementState(wrapper);
-                state.isPlaying = isPlaying;
-                state.paused = !isPlaying;
-                state.currentTime = event.target.getCurrentTime();
-                sendWebSocketMessage('elementUpdate', { element: state });
 
                 if (selectedVideoElementId === elementId) {
                     updateVideoPlayPauseButton(!isPlaying);
                 }
+
+                if (applyingRemoteVideoChange.has(elementId)) {
+                    return;
+                }
+
+                const state = getElementState(wrapper);
+                state.isPlaying = isPlaying;
+                state.paused = !isPlaying;
+                state.currentTime = event.target.getCurrentTime();
+                wrapper.dataset.lastVolume = state.volume;
+                wrapper.dataset.lastCurrentTime = state.currentTime;
+                wrapper.dataset.lastIsPlaying = isPlaying ? 'true' : 'false';
+                sendWebSocketMessage('elementUpdate', { element: state });
             }
         }
 
@@ -2289,12 +2308,10 @@
             const newVolume = parseFloat(videoVolumeRange.value);
             player.setVolume(Math.round(newVolume * 100));
             videoVolumeValue.textContent = `${Math.round(newVolume * 100)}%`;
+            wrapper.dataset.lastVolume = newVolume;
 
             const state = getElementState(wrapper);
             state.volume = newVolume;
-            state.currentTime = player.getCurrentTime();
-            state.isPlaying = player.getPlayerState() === YT.PlayerState.PLAYING;
-            state.paused = !state.isPlaying;
             sendWebSocketMessage('elementUpdate', { element: state });
         });
 
@@ -2311,11 +2328,10 @@
 
             const newTime = parseFloat(videoTimelineRange.value);
             player.seekTo(newTime, true);
+            wrapper.dataset.lastCurrentTime = newTime;
 
             const state = getElementState(wrapper);
             state.currentTime = newTime;
-            state.isPlaying = player.getPlayerState() === YT.PlayerState.PLAYING;
-            state.paused = !state.isPlaying;
             sendWebSocketMessage('elementUpdate', { element: state });
         });
 
@@ -2334,7 +2350,7 @@
                 const origin = encodeURIComponent(window.location.origin);
                 return {
                     platform: 'youtube',
-                    embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}?enablejsapi=1&autoplay=0&origin=${origin}`
+                    embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}?enablejsapi=1&autoplay=0&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0`
                 };
             }
 
@@ -2393,6 +2409,8 @@
             };
 
             sendWebSocketMessage('elementAdd', { element: elementState });
+            createElementFromData(elementState);
+            updateLayersList();
             videoUrlInput.value = '';
         });
 
@@ -2530,15 +2548,10 @@
                     state.embedUrl = element.dataset.embedUrl || contentElement.src;
                     state.platform = element.dataset.platform;
                     state.sourceUrl = element.dataset.sourceUrl;
-
-                    const ytPlayer = youtubePlayers.get(element.id);
-                    if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
-                        state.volume = (ytPlayer.getVolume() || 0) / 100;
-                        state.currentTime = ytPlayer.getCurrentTime();
-                        const isPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
-                        state.isPlaying = isPlaying;
-                        state.paused = !isPlaying;
-                    }
+                    state.volume = parseFloat(element.dataset.lastVolume ?? 0.3);
+                    state.currentTime = parseFloat(element.dataset.lastCurrentTime ?? 0);
+                    state.isPlaying = element.dataset.lastIsPlaying === 'true';
+                    state.paused = !state.isPlaying;
                 } else if (contentElement.classList.contains('text-content')) {
                     state.type = 'text';
                     state.textContent = contentElement.textContent;
