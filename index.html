@@ -428,7 +428,7 @@
 <body class="h-screen flex text-gray-800 invisible-canvas">
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col text-gray-200 pt-4 z-20" style="overflow: hidden;">
         <div class="border-b pb-2 border-gray-700 px-4">
-            <span class="block text-xs text-gray-500 text-center mb-2">v6.0</span>
+            <span class="block text-xs text-gray-500 text-center mb-2">v7.0</span>
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
             <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 <span id="selectFileButtonText">Seleccionar archivo</span>
@@ -1435,44 +1435,9 @@
 
                         const ytPlayer = youtubePlayers.get(element.id);
                         if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
-                            applyingRemoteVideoChange.add(element.id);
-
-                            if (typeof data.volume === 'number') {
-                                const currentVolume = (ytPlayer.getVolume() || 0) / 100;
-                                if (Math.abs(currentVolume - data.volume) > 0.01) {
-                                    ytPlayer.setVolume(Math.round(data.volume * 100));
-                                }
-                            }
-
-                            if (!isDraggingVideoTimeline && typeof data.currentTime === 'number') {
-                                const localTime = ytPlayer.getCurrentTime() || 0;
-                                const timeDifference = Math.abs(localTime - data.currentTime);
-                                if (timeDifference > 1.5) {
-                                    ytPlayer.seekTo(data.currentTime, true);
-                                }
-                            }
-
-                            const isLocallyPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
-                            if (data.isPlaying && !isLocallyPlaying) {
-                                const targetVolume = parseFloat(element.dataset.lastVolume ?? 0.3);
-                                ytPlayer.mute();
-                                const playAttempt = ytPlayer.playVideo();
-                                if (playAttempt && typeof playAttempt.then === 'function') {
-                                    playAttempt.catch(() => {});
-                                }
-                                setTimeout(() => {
-                                    ytPlayer.unMute();
-                                    ytPlayer.setVolume(Math.round(targetVolume * 100));
-                                }, 500);
-                            } else if (!data.isPlaying && isLocallyPlaying) {
-                                ytPlayer.pauseVideo();
-                            }
-
-                            if (selectedVideoElementId === element.id) {
-                                selectVideoElement(element.id);
-                            }
-
-                            setTimeout(() => applyingRemoteVideoChange.delete(element.id), 300);
+                            applyRemoteVideoState(element.id, data);
+                        } else {
+                            pendingVideoUpdates.set(element.id, data);
                         }
                     }
                 }
@@ -1535,6 +1500,7 @@
                             clearTimeout(parseInt(element.dataset.hudCoverTimeoutId, 10));
                         }
                         youtubePlayers.delete(elementId);
+                        pendingVideoUpdates.delete(elementId);
                     }
                     element.remove();
                     if (selectedElementWrapper && selectedElementWrapper.id === elementId) {
@@ -2178,6 +2144,7 @@
         let selectedVideoElementId = null;
         let isDraggingVideoTimeline = false;
         const applyingRemoteVideoChange = new Set();
+        const pendingVideoUpdates = new Map();
 
         function loadYoutubeApi() {
             if (youtubeApiReady || youtubeApiLoading) return;
@@ -2209,11 +2176,22 @@
                     },
                     events: {
                         onReady: (event) => {
+                            youtubePlayers.set(elementId, player);
+
+                            const pendingUpdate = pendingVideoUpdates.get(elementId);
+                            if (pendingUpdate) {
+                                pendingVideoUpdates.delete(elementId);
+                                applyRemoteVideoState(elementId, pendingUpdate);
+                                if (selectedVideoElementId === elementId) {
+                                    selectVideoElement(elementId);
+                                }
+                                return;
+                            }
+
                             const initialVolume = (typeof data.volume === 'number') ? data.volume : 0.3;
                             if (typeof data.currentTime === 'number' && data.currentTime > 0) {
                                 event.target.seekTo(data.currentTime, true);
                             }
-                            youtubePlayers.set(elementId, player);
                             if (data.isPlaying) {
                                 event.target.mute();
                                 const playAttempt = event.target.playVideo();
@@ -2239,6 +2217,51 @@
             } catch (e) {
                 console.warn('No se pudo inicializar el reproductor de YouTube:', e);
             }
+        }
+
+        function applyRemoteVideoState(elementId, data) {
+            const ytPlayer = youtubePlayers.get(elementId);
+            const element = allElements.get(elementId);
+            if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function' || !element) return;
+
+            applyingRemoteVideoChange.add(elementId);
+
+            if (typeof data.volume === 'number') {
+                const currentVolume = (ytPlayer.getVolume() || 0) / 100;
+                if (Math.abs(currentVolume - data.volume) > 0.01) {
+                    ytPlayer.setVolume(Math.round(data.volume * 100));
+                }
+            }
+
+            if (!isDraggingVideoTimeline && typeof data.currentTime === 'number') {
+                const localTime = ytPlayer.getCurrentTime() || 0;
+                const timeDifference = Math.abs(localTime - data.currentTime);
+                if (timeDifference > 1.5) {
+                    ytPlayer.seekTo(data.currentTime, true);
+                }
+            }
+
+            const isLocallyPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
+            if (data.isPlaying && !isLocallyPlaying) {
+                const targetVolume = parseFloat(element.dataset.lastVolume ?? 0.3);
+                ytPlayer.mute();
+                const playAttempt = ytPlayer.playVideo();
+                if (playAttempt && typeof playAttempt.then === 'function') {
+                    playAttempt.catch(() => {});
+                }
+                setTimeout(() => {
+                    ytPlayer.unMute();
+                    ytPlayer.setVolume(Math.round(targetVolume * 100));
+                }, 500);
+            } else if (!data.isPlaying && isLocallyPlaying) {
+                ytPlayer.pauseVideo();
+            }
+
+            if (selectedVideoElementId === elementId) {
+                selectVideoElement(elementId);
+            }
+
+            setTimeout(() => applyingRemoteVideoChange.delete(elementId), 300);
         }
 
         function handleYoutubePlayerStateChange(elementId, event) {
