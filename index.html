@@ -428,7 +428,7 @@
 <body class="h-screen flex text-gray-800 invisible-canvas">
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col text-gray-200 pt-4 z-20" style="overflow: hidden;">
         <div class="border-b pb-2 border-gray-700 px-4">
-            <span class="block text-xs text-gray-500 text-center mb-2">v7.0</span>
+            <span class="block text-xs text-gray-500 text-center mb-2">v8.0</span>
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
             <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 <span id="selectFileButtonText">Seleccionar archivo</span>
@@ -1501,6 +1501,7 @@
                         }
                         youtubePlayers.delete(elementId);
                         pendingVideoUpdates.delete(elementId);
+                        videoProgressLeaders.delete(elementId);
                     }
                     element.remove();
                     if (selectedElementWrapper && selectedElementWrapper.id === elementId) {
@@ -2145,6 +2146,8 @@
         let isDraggingVideoTimeline = false;
         const applyingRemoteVideoChange = new Set();
         const pendingVideoUpdates = new Map();
+        const videoProgressLeaders = new Set();
+        const VIDEO_PROGRESS_SAVE_INTERVAL_MS = 10000;
 
         function loadYoutubeApi() {
             if (youtubeApiReady || youtubeApiLoading) return;
@@ -2278,7 +2281,16 @@
                 updateVideoHudCover(wrapper, isPlaying);
 
                 if (applyingRemoteVideoChange.has(elementId)) {
+                    if (!isPlaying) {
+                        videoProgressLeaders.delete(elementId);
+                    }
                     return;
+                }
+
+                if (isPlaying) {
+                    videoProgressLeaders.add(elementId);
+                } else {
+                    videoProgressLeaders.delete(elementId);
                 }
 
                 const state = getElementState(wrapper);
@@ -2377,13 +2389,24 @@
             updateVideoPlayPauseButton(playerState !== YT.PlayerState.PLAYING);
         }
 
+        let videoProgressTickCounter = 0;
+
         setInterval(() => {
+            videoProgressTickCounter++;
+            const shouldSaveProgress = (videoProgressTickCounter % (VIDEO_PROGRESS_SAVE_INTERVAL_MS / 1000)) === 0;
+
             youtubePlayers.forEach((player, elementId) => {
                 if (!player || typeof player.getCurrentTime !== 'function') return;
                 const wrapper = allElements.get(elementId);
                 if (!wrapper) return;
                 if (player.getPlayerState() !== YT.PlayerState.PLAYING) return;
-                wrapper.dataset.lastCurrentTime = player.getCurrentTime() || 0;
+
+                const currentTime = player.getCurrentTime() || 0;
+                wrapper.dataset.lastCurrentTime = currentTime;
+
+                if (shouldSaveProgress && videoProgressLeaders.has(elementId)) {
+                    sendWebSocketMessage('elementUpdateProgress', { elementId: elementId, currentTime: currentTime });
+                }
             });
         }, 1000);
 
