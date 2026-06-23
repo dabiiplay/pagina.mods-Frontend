@@ -428,7 +428,7 @@
 <body class="h-screen flex text-gray-800 invisible-canvas">
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col text-gray-200 pt-4 z-20" style="overflow: hidden;">
         <div class="border-b pb-2 border-gray-700 px-4">
-            <span class="block text-xs text-gray-500 text-center mb-2">v2.0</span>
+            <span class="block text-xs text-gray-500 text-center mb-2">v3.0</span>
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
             <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 <span id="selectFileButtonText">Seleccionar archivo</span>
@@ -2190,6 +2190,14 @@
             const elementId = data.id;
             try {
                 const player = new YT.Player(iframe, {
+                    playerVars: {
+                        controls: 0,
+                        modestbranding: 1,
+                        rel: 0,
+                        iv_load_policy: 3,
+                        disablekb: 1,
+                        fs: 0
+                    },
                     events: {
                         onReady: (event) => {
                             const initialVolume = (typeof data.volume === 'number') ? data.volume : 0.3;
@@ -2322,6 +2330,16 @@
             const playerState = player.getPlayerState();
             updateVideoPlayPauseButton(playerState !== YT.PlayerState.PLAYING);
         }
+
+        setInterval(() => {
+            youtubePlayers.forEach((player, elementId) => {
+                if (!player || typeof player.getCurrentTime !== 'function') return;
+                const wrapper = allElements.get(elementId);
+                if (!wrapper) return;
+                if (player.getPlayerState() !== YT.PlayerState.PLAYING) return;
+                wrapper.dataset.lastCurrentTime = player.getCurrentTime() || 0;
+            });
+        }, 1000);
 
         setInterval(() => {
             if (!selectedVideoElementId) return;
