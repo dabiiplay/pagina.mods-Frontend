@@ -291,7 +291,7 @@
         #mainCanvasWrapper {
             display: flex;
             position: relative;
-            width: 1496px;
+            width: 1280px;
             height: 720px;
             transform-origin: center center;
             flex-shrink: 0;
@@ -301,8 +301,10 @@
             height: 720px;
             background-color: rgba(var(--theme-left-sidebar-bg-rgb), 0.5);
             border: 2px dashed var(--theme-left-sidebar-border);
-            margin-right: 1rem;
             flex-shrink: 0;
+            position: absolute;
+            top: 0;
+            left: -250px;
         }
         #innerCanvas {
             width: 1280px;
@@ -428,7 +430,7 @@
 <body class="h-screen flex text-gray-800 invisible-canvas">
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col text-gray-200 pt-4 z-20" style="overflow: hidden;">
         <div class="border-b pb-2 border-gray-700 px-4">
-            <span class="block text-xs text-gray-500 text-center mb-2">v10.0</span>
+            <span class="block text-xs text-gray-500 text-center mb-2">v12.0</span>
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
             <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 <span id="selectFileButtonText">Seleccionar archivo</span>
@@ -655,6 +657,7 @@
         const editorCanvas = document.getElementById('editorCanvas');
         const mainCanvasWrapper = document.getElementById('mainCanvasWrapper');
         const leftSidebar = document.getElementById('leftSidebar');
+        const LEFT_SIDEBAR_OFFSET_X = -250; // Debe coincidir con el "left" de #leftSidebar en el CSS
         const innerCanvas = document.getElementById('innerCanvas');
         const sidebar = document.querySelector('aside');
         const imageUpload = document.getElementById('imageUpload');
@@ -2100,7 +2103,7 @@
                         }
                     }
 
-                    const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
+                    const greenCanvasCenterX = LEFT_SIDEBAR_OFFSET_X + (leftSidebar.offsetWidth / 2);
                     const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
                     const initialLeft = greenCanvasCenterX - (finalWidth / 2);
                     const initialTop = greenCanvasCenterY - (finalHeight / 2);
@@ -2425,7 +2428,13 @@
         setInterval(() => {
             if (!selectedVideoElementId) return;
             const player = youtubePlayers.get(selectedVideoElementId);
-            if (!player || typeof player.getCurrentTime !== 'function') return;
+
+            if (!player || typeof player.getCurrentTime !== 'function') {
+                if (allElements.has(selectedVideoElementId)) {
+                    selectVideoElement(selectedVideoElementId);
+                }
+                return;
+            }
             if (isDraggingVideoTimeline) return;
 
             const duration = player.getDuration() || 0;
@@ -2528,7 +2537,7 @@
             const newId = generateUniqueId();
             const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
 
-            const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
+            const greenCanvasCenterX = LEFT_SIDEBAR_OFFSET_X + (leftSidebar.offsetWidth / 2);
             const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
             const initialWidth = 320;
             const initialHeight = 180;
@@ -2571,7 +2580,7 @@
             const newId = generateUniqueId();
             const readyTime = Date.now() + ELEMENT_VISIBILITY_DELAY_MS;
             
-            const greenCanvasCenterX = leftSidebar.offsetWidth / 2;
+            const greenCanvasCenterX = LEFT_SIDEBAR_OFFSET_X + (leftSidebar.offsetWidth / 2);
             const greenCanvasCenterY = leftSidebar.offsetHeight / 2;
             const initialLeft = greenCanvasCenterX - (100 / 2);
             const initialTop = greenCanvasCenterY - (50 / 2);
@@ -3662,19 +3671,12 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            connectWebSocket();
-            loadElementsState();
-            mainCanvasWrapper.style.transformOrigin = 'center center';
-            deselectAllElements(); 
-            updateLayersList();
-            updateAudioPlaylistDisplay();
-            updateFileCountDisplay();
-            applyZoom();
-            
             // DETECCIÓN DE OBS PARA ACTIVAR SONIDO
             // Usamos un parámetro en la URL (?obs=1) porque el body nunca tiene
             // fondo transparente de forma real, así que esa comprobación nunca se cumplía.
             // En OBS, pon la URL de la fuente de navegador como: tu-pagina.com/?obs=1
+            // Esto se hace ANTES de conectar el WebSocket para que isMutedGlobally
+            // ya tenga su valor correcto cuando lleguen los videos del estado inicial.
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('obs') === '1') {
                 isMutedGlobally = false; // Parámetro ?obs=1 presente -> Activar sonido
@@ -3683,6 +3685,15 @@
                 isMutedGlobally = true; // Sin el parámetro -> Navegador normal -> Silenciar por defecto
                 console.log("Navegador detectado: Sonido SILENCIADO");
             }
+
+            connectWebSocket();
+            loadElementsState();
+            mainCanvasWrapper.style.transformOrigin = 'center center';
+            deselectAllElements(); 
+            updateLayersList();
+            updateAudioPlaylistDisplay();
+            updateFileCountDisplay();
+            applyZoom();
             applyGlobalMuteState();
         });
     </script>
