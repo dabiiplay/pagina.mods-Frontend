@@ -304,7 +304,7 @@
             flex-shrink: 0;
             position: absolute;
             top: 0;
-            left: -250px;
+            left: -90px;
         }
         #innerCanvas {
             width: 1280px;
@@ -433,7 +433,7 @@
 <body class="h-screen flex text-gray-800 invisible-canvas">
     <aside class="w-80 bg-gray-900 shadow-lg flex flex-col text-gray-200 pt-4 z-20" style="overflow: hidden;">
         <div class="border-b pb-2 border-gray-700 px-4">
-            <span class="block text-xs text-gray-500 text-center mb-2">v14.0</span>
+            <span class="block text-xs text-gray-500 text-center mb-2">v1.0</span>
             <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-2 text-center">Subir Imagen/GIF/MP3</label>
             <div class="custom-file-input w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 cursor-pointer transition-colors duration-200 text-center" style="background-color: var(--theme-main-accent); --tw-bg-opacity: 1; transition: background-color 0.2s ease-in-out;" onmouseover="this.style.backgroundColor = 'var(--theme-main-accent-dark)'" onmouseout="this.style.backgroundColor = 'var(--theme-main-accent)'">
                 <span id="selectFileButtonText">Seleccionar archivo</span>
@@ -660,7 +660,7 @@
         const editorCanvas = document.getElementById('editorCanvas');
         const mainCanvasWrapper = document.getElementById('mainCanvasWrapper');
         const leftSidebar = document.getElementById('leftSidebar');
-        const LEFT_SIDEBAR_OFFSET_X = -250; // Debe coincidir con el "left" de #leftSidebar en el CSS
+        const LEFT_SIDEBAR_OFFSET_X = -90; // Debe coincidir con el "left" de #leftSidebar en el CSS
         const innerCanvas = document.getElementById('innerCanvas');
         const sidebar = document.querySelector('aside');
         const imageUpload = document.getElementById('imageUpload');
@@ -2219,11 +2219,18 @@
                                     playAttempt.catch(() => {});
                                 }
                                 setTimeout(() => {
-                                    event.target.unMute();
-                                    event.target.setVolume(Math.round(getEffectiveVideoVolume(initialVolume) * 100));
+                                    if (isMutedGlobally) {
+                                        event.target.mute();
+                                    } else {
+                                        event.target.unMute();
+                                        event.target.setVolume(Math.round(initialVolume * 100));
+                                    }
                                 }, 500);
+                            } else if (isMutedGlobally) {
+                                event.target.mute();
                             } else {
-                                event.target.setVolume(Math.round(getEffectiveVideoVolume(initialVolume) * 100));
+                                event.target.unMute();
+                                event.target.setVolume(Math.round(initialVolume * 100));
                             }
                             if (selectedVideoElementId === elementId) {
                                 selectVideoElement(elementId);
@@ -2458,8 +2465,14 @@
                 player.pauseVideo();
             } else {
                 const desiredVolume = parseFloat(wrapper.dataset.lastVolume ?? 0.3);
-                player.setVolume(Math.round(getEffectiveVideoVolume(desiredVolume) * 100));
-                player.playVideo();
+                if (isMutedGlobally) {
+                    player.mute();
+                    player.playVideo();
+                } else {
+                    player.unMute();
+                    player.setVolume(Math.round(desiredVolume * 100));
+                    player.playVideo();
+                }
             }
         });
 
